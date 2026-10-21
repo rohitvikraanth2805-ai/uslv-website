@@ -21,22 +21,27 @@ const SERVICES = [
 ];
 
 export default async function handler(req, res) {
+  // Accept appointment submissions only.
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
+
     return res.status(405).json({
       success: false,
       message: "Use POST to submit an appointment.",
     });
   }
 
+  // Check Vercel email configuration.
   if (!EMAIL_USER || !EMAIL_PASS || !OWNER_EMAIL) {
     console.error("Missing email environment variables.");
+
     return res.status(500).json({
       success: false,
       message: "Email service is not configured.",
     });
   }
 
+  // Read appointment details.
   const body = req.body ?? {};
 
   const name = clean(body.name);
@@ -48,6 +53,7 @@ export default async function handler(req, res) {
   const service = clean(body.service);
   const message = String(body.message ?? "").trim();
 
+  // Validate name.
   if (name.length < 2 || name.length > 80) {
     return res.status(400).json({
       success: false,
@@ -55,6 +61,7 @@ export default async function handler(req, res) {
     });
   }
 
+  // Validate Indian mobile number.
   if (!/^[6-9]\d{9}$/.test(digits)) {
     return res.status(400).json({
       success: false,
@@ -62,13 +69,15 @@ export default async function handler(req, res) {
     });
   }
 
-  if (email && !validEmail(email)) {
+  // A valid client email is required to send confirmation.
+  if (!email || email.length > 254 || !validEmail(email)) {
     return res.status(400).json({
       success: false,
       message: "Please enter a valid email address.",
     });
   }
 
+  // Validate requested service.
   if (!SERVICES.includes(service)) {
     return res.status(400).json({
       success: false,
@@ -76,6 +85,7 @@ export default async function handler(req, res) {
     });
   }
 
+  // Validate age when supplied.
   if (
     ageText &&
     (!Number.isInteger(age) || age < 1 || age > 120)
@@ -86,6 +96,7 @@ export default async function handler(req, res) {
     });
   }
 
+  // Limit message length.
   if (message.length > 1000) {
     return res.status(400).json({
       success: false,
@@ -94,10 +105,12 @@ export default async function handler(req, res) {
   }
 
   const phone = `+91${digits}`;
+
   const timestamp = new Date().toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
   });
 
+  // Connect to Gmail using your Vercel environment variables.
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -112,17 +125,19 @@ export default async function handler(req, res) {
   });
 
   try {
+    // EMAIL 1: Send the booking details to you.
     await transporter.sendMail({
       from: `"US & LV Website" <${EMAIL_USER}>`,
       to: OWNER_EMAIL,
-      replyTo: email || undefined,
+      replyTo: email,
       subject: `New Booking: ${name} (${service})`.slice(0, 150),
+
       text: [
         "NEW APPOINTMENT REQUEST",
         "",
         `Name: ${name}`,
         `Phone: ${phone}`,
-        `Email: ${email || "Not provided"}`,
+        `Email: ${email}`,
         `Age: ${age ?? "Not provided"}`,
         `Service: ${service}`,
         `Message: ${message || "None"}`,
@@ -130,11 +145,60 @@ export default async function handler(req, res) {
       ].join("\n"),
     });
 
-    console.log("Appointment notification email sent.");
+    console.log("Owner notification email sent.");
 
+    // EMAIL 2: Send a confirmation email to the client.
+    let customerEmailSent = false;
+
+    try {
+      await transporter.sendMail({
+        from: `"US & LV Website" <${EMAIL_USER}>`,
+        to: email,
+        replyTo: OWNER_EMAIL,
+        subject: "We received your appointment request",
+
+        text: [
+          `Dear ${name},`,
+          "",
+          "Thank you for contacting US & LV!",
+          "",
+          "We have received your appointment request.",
+          "",
+          `Name: ${name}`,
+          `Service requested: ${service}`,
+          `Phone: ${phone}`,
+          `Request received: ${timestamp} IST`,
+          "",
+          "Our team will contact you to confirm your appointment details.",
+          "",
+          "Please note that this email confirms receipt of your request,",
+          "not a confirmed appointment date or time.",
+          "",
+          "Thank you for choosing US & LV.",
+          "",
+          "Best regards,",
+          "US & LV Team",
+        ].join("\n"),
+      });
+
+      customerEmailSent = true;
+      console.log("Client confirmation email sent.");
+    } catch (customerError) {
+      console.error(
+        "Client confirmation email failed:",
+        customerError?.code || "",
+        customerError?.message || "Unknown email error"
+      );
+    }
+
+    // The owner's notification succeeded even if the second
+    // email fails, so do not invite a duplicate booking submission.
     return res.status(200).json({
       success: true,
-      message: "Your appointment request has been received successfully.",
+      customerEmailSent,
+      message: customerEmailSent
+        ? "Appointment received. Confirmation email sent to the client."
+        : "Appointment received, but the client confirmation email could not be sent.",
     });
   } catch (error) {
     console.error(
