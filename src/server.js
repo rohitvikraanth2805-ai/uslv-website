@@ -501,7 +501,7 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // REQUIRED for Vercel:
-module.exports = app;
+export default app;
 // Add this at the VERY BOTTOM of src/server.js
 app.post('/book-appointment-fallback', async (req, res) => {
   try {
