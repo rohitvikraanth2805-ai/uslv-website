@@ -521,7 +521,7 @@ app.post('/book-appointment-fallback', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
-const { Resend } = require('resend');
+import { Resend } from 'resend';
 
 app.post('/book-appointment', async (req, res) => {
   try {
