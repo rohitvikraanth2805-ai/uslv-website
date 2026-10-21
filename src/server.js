@@ -494,3 +494,30 @@ if (!process.argv.includes('--test-mail')) {
 }
 
 process.on('unhandledRejection', (reason) => console.error('❌ Unhandled rejection:', reason));
+// At the bottom of src/server.js:
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 8080;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
+
+// REQUIRED for Vercel:
+module.exports = app;
+// Add this at the VERY BOTTOM of src/server.js
+app.post('/book-appointment-fallback', async (req, res) => {
+  try {
+    const { name, phone, email, service, message } = req.body;
+    
+    // Direct email logic without touching previous code
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER || 'rohitvikraanth2805@gmail.com',
+      to: process.env.OWNER_EMAIL || 'rohitvikraanth2805@gmail.com',
+      subject: `New Appointment Booking: ${name || 'Client'}`,
+      text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\nService: ${service}\nMessage: ${message}`
+    });
+
+    return res.status(200).json({ success: true, message: 'Email sent successfully!' });
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
