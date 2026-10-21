@@ -3,15 +3,6 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export default async function handler(req, res) {
-  // Allow cross-origin requests (CORS)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -21,10 +12,9 @@ export default async function handler(req, res) {
 
     const { data, error } = await resend.emails.send({
       from: 'onboarding@resend.dev',
-      to: process.env.OWNER_EMAIL || 'rohitvikraanth2805@gmail.com',
-      subject: `New Booking Request from ${name}`,
+      to: 'rohitvikraanth2805@gmail.com', // MUST be your Resend email
+      subject: `New Booking from ${name || 'Website'}`,
       html: `
-        <h3>New Appointment Booking</h3>
         <p><strong>Name:</strong> ${name}</p>
         <p><strong>Phone:</strong> ${phone}</p>
         <p><strong>Email:</strong> ${email}</p>
@@ -34,11 +24,8 @@ export default async function handler(req, res) {
       `
     });
 
-    if (error) {
-      return res.status(400).json({ error });
-    }
-
-    return res.status(200).json({ success: true, message: 'Booking confirmed!', data });
+    if (error) return res.status(400).json({ error });
+    return res.status(200).json({ success: true, message: 'Booking confirmed!' });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to send email' });
   }
