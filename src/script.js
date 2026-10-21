@@ -1,3 +1,8 @@
+SCRIPT.JS
+
+
+
+
 (() => {
   'use strict';
 
@@ -674,44 +679,3 @@
     });
   });
 })();
-// --- ADD THIS AT THE VERY BOTTOM OF src/server.js ---
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-// 1. Erase the old, broken route from the server's memory
-if (app._router && app._router.stack) {
-  app._router.stack = app._router.stack.filter(
-    layer => !(layer.route && layer.route.path === '/book-appointment')
-  );
-}
-
-// 2. Create the working Resend route
-app.post('/book-appointment', async (req, res) => {
-  try {
-    const { name, email, phone, age, service, message } = req.body;
-
-    const { data, error } = await resend.emails.send({
-      from: 'onboarding@resend.dev',
-      to: process.env.OWNER_EMAIL || 'rohitvikraanth2805@gmail.com',
-      subject: `New Booking Request from ${name || 'Website User'}`,
-      html: `
-        <h3>New Appointment Booking</h3>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Phone:</strong> ${phone}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Age:</strong> ${age}</p>
-        <p><strong>Service:</strong> ${service}</p>
-        <p><strong>Message:</strong> ${message}</p>
-      `
-    });
-
-    if (error) {
-      return res.status(400).json({ error });
-    }
-
-    return res.status(200).json({ success: true, message: 'Booking confirmed!', data });
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to send email' });
-  }
-});

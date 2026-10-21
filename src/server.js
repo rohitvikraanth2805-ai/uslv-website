@@ -1,30 +1,21 @@
+SERVER.JS
+
+
+
+
 import express from 'express';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import os from 'os';
 import path from 'path';
-import { promises as fs, existsSync } from 'fs';
+import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-/* -------------------------------------------------------------------------
- * Load .env
- * dotenv normally reads .env from the folder you start Node in, and it never
- * replaces a variable that already exists in your terminal. Either one can make
- * the server keep using an OLD email login. So we look in the usual places and
- * let the .env file win.
- * ---------------------------------------------------------------------- */
-const ENV_CANDIDATES = [...new Set([
-  path.join(__dirname, '.env'),
-  path.join(process.cwd(), '.env'),
-  path.join(__dirname, '..', '.env'),
-])];
-const ENV_FILE = ENV_CANDIDATES.find((file) => existsSync(file));
-if (ENV_FILE) dotenv.config({ path: ENV_FILE, override: true });
-else dotenv.config();
 
 /* -------------------------------------------------------------------------
  * Configuration
@@ -32,15 +23,6 @@ else dotenv.config();
 const env = process.env;
 const IS_PROD = env.NODE_ENV === 'production';
 const PORT = Number(env.PORT) || 8080;
-
-// Strip stray spaces and quotes: Google shows App Passwords as "abcd efgh ijkl mnop"
-const unquote = (v) => String(v ?? '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
-const EMAIL_USER = unquote(env.EMAIL_USER);
-const EMAIL_PASS = unquote(env.EMAIL_PASS).replace(/\s+/g, '');
-const OWNER_EMAIL = unquote(env.OWNER_EMAIL) || EMAIL_USER;
-const CUSTOMER_CONFIRMATION = (env.CUSTOMER_CONFIRMATION || 'on').toLowerCase() !== 'off';
-
-const mask = (email) => email.replace(/^(.{2}).*(@.*)$/, '$1•••$2');
 
 const ALLOWED_ORIGINS = (env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
 const RATE_WINDOW_MS = 15 * 60 * 1000;
@@ -53,19 +35,12 @@ const BOOKINGS_FILE = env.BOOKINGS_FILE
   ? path.resolve(env.BOOKINGS_FILE)
   : path.join(os.homedir(), 'uslv-bookings', 'bookings.jsonl');
 
-const EMAIL_ENABLED = Boolean(EMAIL_USER && EMAIL_PASS);
+const EMAIL_ENABLED = Boolean(env.EMAIL_USER && env.EMAIL_PASS);
 
 const SERVICES = ['Career Counselling', 'Financial Advisory', 'Educational Advisory', 'Corporate Training'];
 const SERVICE_ALIASES = { Career: SERVICES[0], Finance: SERVICES[1], Education: SERVICES[2] }; // older form values
 
-console.log(`⚙️  Settings file : ${ENV_FILE || 'none found (using system environment)'}`);
-if (EMAIL_ENABLED) {
-  console.log(`📧 Mail account  : ${mask(EMAIL_USER)}  →  alerts go to ${mask(OWNER_EMAIL)}`);
-  console.log(`🔑 App password  : ${EMAIL_PASS.length} characters`);
-  if (EMAIL_PASS.length !== 16) {
-    console.warn('⚠️  A Gmail App Password is exactly 16 characters. Create a new one and paste it again.');
-  }
-} else {
+if (!EMAIL_ENABLED) {
   console.warn('⚠️  EMAIL_USER / EMAIL_PASS not set: bookings will be printed and saved, but no email is sent.');
 }
 
@@ -124,30 +99,17 @@ const transporter = EMAIL_ENABLED
       host: 'smtp.gmail.com',
       port: 465,
       secure: true,
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS },
+      auth: { user: env.EMAIL_USER, pass: env.EMAIL_PASS },
       connectionTimeout: 10_000,
       greetingTimeout: 10_000,
       socketTimeout: 15_000,
     })
   : null;
 
-const explainMailError = (error) => {
-  if (error?.code === 'EAUTH') {
-    return [
-      error.message,
-      `   → Gmail rejected the login for ${mask(EMAIL_USER)}. Check all of these:`,
-      '     1. The App Password was created while signed in to THIS exact account (not an old or test account).',
-      '     2. 2-Step Verification is switched ON for this account (App Passwords need it).',
-      '     3. The password in .env is the newest one (an old or deleted one stops working).',
-      '     4. Google Workspace accounts: your admin must allow App Passwords.',
-      '     5. Restart the server after editing .env.',
-    ].join('\n');
-  }
-  if (error?.code === 'ETIMEDOUT' || error?.code === 'ECONNECTION' || error?.code === 'ESOCKET') {
-    return `${error.message} → The server could not reach Gmail (port 465). Check the internet connection, VPN or firewall.`;
-  }
-  return error?.message;
-};
+const explainMailError = (error) =>
+  error?.code === 'EAUTH'
+    ? `${error.message} → Gmail rejected the login. Use a Gmail App Password in EMAIL_PASS (not your normal password).`
+    : error?.message;
 
 // Verify SMTP connection on startup
 if (transporter) {
@@ -208,57 +170,6 @@ function buildHtmlEmail(d, timestamp) {
     </body>
     </html>
     `;
-}
-
-/* Confirmation sent to the person who booked (only when they gave an email address) */
-function buildCustomerEmail(d, timestamp) {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif; background:#f4f6f8; margin:0; padding:20px;">
-      <div style="max-width:600px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
-        <div style="background:#0f3d3e; color:#ffffff; padding:22px; text-align:center;">
-          <h2 style="margin:0; font-size:20px;">Your appointment request is confirmed</h2>
-        </div>
-        <div style="padding:24px; color:#1e293b; font-size:15px; line-height:1.6;">
-          <p>Dear ${esc(d.name)},</p>
-          <p>Thank you for booking with <strong>US &amp; LV India (OPC) Pvt Ltd</strong>. We have received your request for <strong>${esc(d.service)}</strong> and will contact you shortly on <strong>${esc(d.phone)}</strong> to confirm your session.</p>
-          <p style="margin:18px 0 4px;"><strong>Your details</strong></p>
-          <p style="margin:0;">Service: ${esc(d.service)}<br>Phone: ${esc(d.phone)}<br>Requested on: ${esc(timestamp)} IST</p>
-          <p style="margin-top:18px;">For anything urgent, call us on <a href="tel:+919380376767" style="color:#8a6414;">+91 93803 76767</a> (Monday to Saturday, 9:00 AM to 6:00 PM).</p>
-          <p>Warm regards,<br>US &amp; LV India<br><em>The Growth Transformers</em></p>
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
-}
-
-/* -------------------------------------------------------------------------
- * Mail test:  node src/server.js --test-mail
- * Sends one test email to OWNER_EMAIL and exits, so you can check your
- * Gmail settings without opening the website.
- * ---------------------------------------------------------------------- */
-if (process.argv.includes('--test-mail')) {
-  (async () => {
-    if (!transporter) {
-      console.error('❌ Set EMAIL_USER and EMAIL_PASS in .env first.');
-      process.exit(1);
-    }
-    try {
-      await transporter.sendMail({
-        from: `"US & LV Website" <${EMAIL_USER}>`,
-        to: OWNER_EMAIL,
-        subject: '✅ Test email from the US & LV website',
-        text: 'If you can read this, your Gmail settings are correct and booking alerts will arrive.',
-      });
-      console.log(`✅ Test email sent to ${mask(OWNER_EMAIL)}. Check the inbox (and spam).`);
-      process.exit(0);
-    } catch (error) {
-      console.error('❌ Test email failed:', explainMailError(error));
-      process.exit(1);
-    }
-  })();
 }
 
 /* -------------------------------------------------------------------------
@@ -387,17 +298,17 @@ app.post(['/api/contact', '/api/book-appointment'], rateLimit, async (req, res) 
   console.log(`🌐 Sent from     : ${req.get('origin') || 'same site'}`);
   console.log('==================================================\n');
 
-  // 2. SAVE A COPY, EMAIL THE OWNER, CONFIRM TO THE CUSTOMER: independent, so one failing never loses the booking
+  // 2. SAVE A COPY AND EMAIL THE STYLED TABLE: independent, so one failing never loses the booking
   const saveCopy = async () => {
     await fs.mkdir(path.dirname(BOOKINGS_FILE), { recursive: true });
     await fs.appendFile(BOOKINGS_FILE, `${JSON.stringify({ ...data, receivedAt: new Date().toISOString() })}\n`, 'utf8');
   };
 
-  const sendOwnerEmail = async () => {
+  const sendEmail = async () => {
     if (!transporter) throw new Error('Email is not configured');
     return transporter.sendMail({
-      from: `"US & LV Website" <${EMAIL_USER}>`,
-      to: OWNER_EMAIL,
+      from: `"US & LV Website" <${env.EMAIL_USER}>`,
+      to: env.OWNER_EMAIL || env.EMAIL_USER,
       replyTo: data.email || undefined,
       subject: truncate(`🚨 New Booking: ${data.name} (${data.service})`, 150),
       html: buildHtmlEmail(data, timestamp),
@@ -407,29 +318,13 @@ app.post(['/api/contact', '/api/book-appointment'], rateLimit, async (req, res) 
     });
   };
 
-  const sendCustomerEmail = async () => {
-    if (!transporter || !CUSTOMER_CONFIRMATION || !data.email) return null;
-    return transporter.sendMail({
-      from: `"US & LV India" <${EMAIL_USER}>`,
-      to: data.email,
-      replyTo: OWNER_EMAIL,
-      subject: 'Your appointment request is confirmed | US & LV India',
-      html: buildCustomerEmail(data, timestamp),
-      text: `Dear ${data.name},\n\nThank you for booking with US & LV India. We have received your request for ${data.service} and will contact you shortly on ${data.phone} to confirm your session.\n\nFor anything urgent, call +91 93803 76767 (Monday to Saturday, 9:00 AM to 6:00 PM).\n\nWarm regards,\nUS & LV India\nThe Growth Transformers\n`,
-    });
-  };
+  const [saved, emailed] = await Promise.allSettled([saveCopy(), sendEmail()]);
 
-  const [saved, ownerMail, customerMail] = await Promise.allSettled([saveCopy(), sendOwnerEmail(), sendCustomerEmail()]);
-
-  if (ownerMail.status === 'fulfilled') console.log('✅ Booking email sent to the owner. Message ID:', ownerMail.value.messageId);
-  else if (EMAIL_ENABLED) console.error('❌ Failed to send email alert:', explainMailError(ownerMail.reason));
-
-  if (customerMail.status === 'fulfilled' && customerMail.value) console.log(`✅ Confirmation email sent to ${mask(data.email)}.`);
-  else if (customerMail.status === 'rejected') console.error('❌ Failed to send customer confirmation:', explainMailError(customerMail.reason));
-
+  if (emailed.status === 'fulfilled') console.log('✅ Styled HTML email sent successfully! Message ID:', emailed.value.messageId);
+  else if (EMAIL_ENABLED) console.error('❌ Failed to send email alert:', explainMailError(emailed.reason));
   if (saved.status === 'rejected') console.error('❌ Failed to save booking copy:', saved.reason?.message);
 
-  if (ownerMail.status === 'fulfilled') {
+  if (emailed.status === 'fulfilled') {
     return res.status(200).json({
       success: true,
       message: 'Thank you! Your appointment request has been received successfully.',
@@ -469,55 +364,25 @@ app.use((err, _req, res, _next) => {
 /* -------------------------------------------------------------------------
  * Start & graceful shutdown
  * ---------------------------------------------------------------------- */
-if (!process.argv.includes('--test-mail')) {
-  const server = app.listen(PORT, () => {
-    console.log(`\n🚀 Server running at http://localhost:${PORT}`);
-    console.log('📡 Listening for appointment bookings (from this site and from Live Server)...');
-    console.log(`💾 Booking copies are saved to: ${BOOKINGS_FILE}\n`);
-  });
-
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') console.error(`❌ Port ${PORT} is already in use. Stop the other server or set PORT in .env.`);
-    else console.error('❌ Server error:', err.message);
-    process.exit(1);
-  });
-
-  const shutdown = (signal) => {
-    console.log(`\n${signal} received, shutting down.`);
-    server.close(() => {
-      transporter?.close();
-      process.exit(0);
-    });
-    setTimeout(() => process.exit(1), 10_000).unref();
-  };
-  ['SIGINT', 'SIGTERM'].forEach((signal) => process.on(signal, () => shutdown(signal)));
-}
-
-process.on('unhandledRejection', (reason) => console.error('❌ Unhandled rejection:', reason));
-// At the bottom of src/server.js:
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 8080;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-}
-
-// REQUIRED for Vercel:
-export default app;
-// Add this at the VERY BOTTOM of src/server.js
-app.post('/book-appointment-fallback', async (req, res) => {
-  try {
-    const { name, phone, email, service, message } = req.body;
-    
-    // Direct email logic without touching previous code
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER || 'rohitvikraanth2805@gmail.com',
-      to: process.env.OWNER_EMAIL || 'rohitvikraanth2805@gmail.com',
-      subject: `New Appointment Booking: ${name || 'Client'}`,
-      text: `Name: ${name}\nPhone: ${phone}\nEmail: ${email}\nService: ${service}\nMessage: ${message}`
-    });
-
-    return res.status(200).json({ success: true, message: 'Email sent successfully!' });
-  } catch (error) {
-    console.error('Error sending email:', error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
+const server = app.listen(PORT, () => {
+  console.log(`\n🚀 Server running at http://localhost:${PORT}`);
+  console.log(`📡 Listening for appointment bookings (from this site and from Live Server)...`);
+  console.log(`💾 Booking copies are saved to: ${BOOKINGS_FILE}\n`);
 });
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') console.error(`❌ Port ${PORT} is already in use. Stop the other server or set PORT in .env.`);
+  else console.error('❌ Server error:', err.message);
+  process.exit(1);
+});
+
+const shutdown = (signal) => {
+  console.log(`\n${signal} received, shutting down.`);
+  server.close(() => {
+    transporter?.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10_000).unref();
+};
+['SIGINT', 'SIGTERM'].forEach((signal) => process.on(signal, () => shutdown(signal)));
+process.on('unhandledRejection', (reason) => console.error('❌ Unhandled rejection:', reason));
