@@ -579,3 +579,31 @@ app.post('/book-appointment', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+// Add this at the absolute bottom of src/server.js
+app.post('/api/send-resend', async (req, res) => {
+  try {
+    const { name, email, phone, date, time } = req.body;
+    
+    // Initialize Resend inside the route
+    const { Resend } = await import('resend'); 
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const { data, error } = await resend.emails.send({
+      from: 'onboarding@resend.dev', 
+      to: 'rohitvikraanth2805@gmail.com', // Must be your registered Resend email
+      subject: 'New Appointment Booking',
+      html: `<p>New booking from <b>${name}</b></p>
+             <p>Email: ${email}</p>
+             <p>Phone: ${phone}</p>
+             <p>Date: ${date} at ${time}</p>`
+    });
+
+    if (error) {
+      return res.status(400).json({ error });
+    }
+
+    res.status(200).json({ message: 'Booking successful via Resend API', data });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to send email via Resend' });
+  }
+});
