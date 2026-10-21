@@ -1,3 +1,4 @@
+
 /* ---------- Design tokens ---------- */
 :root{
   --teal-900:#0b2f30; --teal-700:#0f3d3e; --teal-500:#1d6b6c;
@@ -31,21 +32,13 @@ h1{font-size:clamp(2rem,4.5vw,3rem);color:#fff}
 h2{font-size:clamp(1.6rem,3vw,2.2rem);margin-bottom:.3em}
 h3{font-size:1.3rem}
 h4{font-size:1.05rem;margin:1.6rem 0 .4rem}
-p{margin:0 0 1em;max-width:70ch;text-wrap:pretty}
+p{margin:0 0 1em;max-width:70ch}
 .lead{font-size:1.125rem;color:var(--muted);margin-bottom:1.2em}
 .kicker{color:#e8c98f;font-weight:600;margin-bottom:1rem}
 .kicker-dark{color:var(--brass-dark)}
 .role{color:var(--brass-dark);font-weight:600;margin-bottom:.8rem}
 .intro{font-style:italic;color:var(--brass-dark);font-weight:500;margin-bottom:.5em}
 blockquote{margin:0 0 1em;padding-left:1rem;border-left:3px solid var(--brass);font-family:var(--font-head);font-size:1.05rem;font-style:italic;color:var(--teal-700)}
-
-/* Text fills the full width of its card or section, so lines end evenly
-   instead of stopping short and leaving empty space on the right */
-.dir-body p,.dir-body li,
-.story-pillar p,
-.prose p,
-.stack > .card p,.stack > .card li,
-.section > .container > p{max-width:none}
 
 /* ---------- Intro splash ---------- */
 .splash{
@@ -205,8 +198,8 @@ textarea{resize:vertical;min-height:110px}
 .dir-body h4:first-child{margin-top:1.4rem}
 .dir-body p:last-child,.dir-body ul:last-child{margin-bottom:0}
 
-/* Story: fills the same width as the heading and the other sections */
-.prose{max-width:none;margin-top:1.5rem}
+/* Story */
+.prose{max-width:760px;margin-top:1.5rem}
 .prose h3{margin-top:2.2rem}
 .story-pillar{background:#fff;border:1px solid var(--line);border-left:4px solid var(--teal-500);border-radius:var(--radius);padding:1.4rem 1.6rem;margin-bottom:1.25rem}
 .story-pillar h4{margin-top:0}
