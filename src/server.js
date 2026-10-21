@@ -521,3 +521,31 @@ app.post('/book-appointment-fallback', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+const { Resend } = require('resend');
+
+app.post('/book-appointment', async (req, res) => {
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { name, email, phone, age, service, message } = req.body;
+
+    await resend.emails.send({
+      from: 'onboarding@resend.dev',
+      to: 'rohitvikraanth2805@gmail.com',
+      subject: `New Appointment Booking: ${name || 'Client'}`,
+      html: `
+        <h3>New Appointment Request</h3>
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Phone:</strong> ${phone}</p>
+        <p><strong>Age:</strong> ${age}</p>
+        <p><strong>Service:</strong> ${service}</p>
+        <p><strong>Message:</strong> ${message}</p>
+      `
+    });
+
+    return res.status(200).json({ success: true, message: 'Email sent successfully!' });
+  } catch (error) {
+    console.error('Resend Error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
