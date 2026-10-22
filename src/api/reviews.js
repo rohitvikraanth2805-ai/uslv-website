@@ -202,7 +202,7 @@ export default async function handler(req, res) {
         reviews: rows.slice(0, PAGE_SIZE).map((row) => JSON.parse(row)),
         hasMore: rows.length > PAGE_SIZE
       });
-   } catch (error) {
+  } catch (error) {
   console.error("Review loading failed:", error);
   return res.status(503).json({
     error: "Reviews could not be loaded. Please try again."
