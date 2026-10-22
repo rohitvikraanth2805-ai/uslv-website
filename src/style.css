@@ -693,3 +693,25 @@ main li {
   overflow-wrap: break-word;
 }
 
+/* ---------- General Information Disclaimer ---------- */
+
+.disclaimer {
+  margin-top: 2rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.disclaimer p {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  text-align: justify;
+  max-width: 70ch;
+  margin-bottom: 0.8rem;
+}
+
+.disclaimer-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
