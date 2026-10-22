@@ -649,3 +649,47 @@ textarea{resize:vertical;min-height:110px}
     clip-path:none!important;
   }
 }
+
+/* ---------- Consistent Text Alignment Across Website ---------- */
+
+/* Keep paragraphs and lists at the same content width */
+main p,
+main .plain,
+main .bullets,
+main .hero-points {
+  max-width: 70ch;
+}
+
+/* Justify all paragraph and list text */
+main p,
+main .plain li,
+main .bullets li,
+main .hero-points li {
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+/* Maintain consistent right edges in all service cards */
+#services .card p,
+#services .card .plain {
+  max-width: 70ch;
+}
+
+/* Maintain consistent alignment in leadership sections */
+#directors .dir-body p,
+#directors .dir-body .bullets {
+  max-width: 70ch;
+}
+
+/* Maintain consistent alignment in Vision & Mission */
+#vision-mission .card p,
+#vision-mission .card .plain {
+  max-width: 70ch;
+}
+
+/* Prevent long words from overflowing on smaller screens */
+main p,
+main li {
+  overflow-wrap: break-word;
+}
+
