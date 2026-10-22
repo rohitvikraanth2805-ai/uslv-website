@@ -52,8 +52,9 @@ async function redis(command) {
   });
 
   if (!response.ok) {
-    throw new Error("Review database request failed.");
-  }
+  console.error("Upstash HTTP status:", response.status);
+  throw new Error("Review database request failed.");
+}
 
   const data = await response.json();
 
