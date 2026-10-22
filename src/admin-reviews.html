@@ -5,134 +5,598 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+
   <title>Review Publishing | US &amp; LV India</title>
+
   <link rel="stylesheet" href="style.css">
+
   <style>
-    body { background: #f2f5f8; color: #17365d; }
-    .admin-wrap { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
-    .admin-wrap .card { padding: 2rem; }
-    .admin-wrap h1 { color: #17365d; }
-    .admin-wrap .field { margin-bottom: 1.1rem; }
-    .admin-wrap .notice { font-size: .9rem; color: #355575; }
-    .admin-wrap .check { display: flex; align-items: flex-start; gap: .65rem; }
-    .admin-wrap .check input { width: auto; margin-top: .45rem; }
-    .admin-wrap .check label { font-weight: 400; }
-    .admin-wrap select { color: #17365d; }
+    body {
+      background: #f2f5f8;
+      color: #17365d;
+    }
+
+    .admin-wrap {
+      max-width: 760px;
+      margin: 3rem auto;
+      padding: 0 1rem;
+    }
+
+    .admin-wrap .card {
+      padding: 2rem;
+    }
+
+    .admin-wrap h1 {
+      color: #17365d;
+    }
+
+    .admin-wrap .field {
+      margin-bottom: 1.1rem;
+    }
+
+    .admin-wrap .notice {
+      font-size: .9rem;
+      color: #355575;
+    }
+
+    .admin-wrap .check {
+      display: flex;
+      align-items: flex-start;
+      gap: .65rem;
+    }
+
+    .admin-wrap .check input {
+      width: auto;
+      margin-top: .45rem;
+    }
+
+    .admin-wrap .check label {
+      font-weight: 400;
+    }
+
+    .admin-wrap select {
+      color: #17365d;
+    }
+
+    .password-card {
+      margin-top: 2rem;
+    }
+
+    .password-card h2 {
+      color: #17365d;
+    }
+
+    .password-card small {
+      display: block;
+      margin-top: .4rem;
+      color: #355575;
+    }
+
+    .admin-status {
+      margin-top: 1rem;
+      font-weight: 500;
+      overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 600px) {
+      .admin-wrap .card {
+        padding: 1.4rem;
+      }
+    }
   </style>
 </head>
+
 <body>
+
   <main class="admin-wrap">
+
     <a href="/">← Back to website</a>
+
+    <!-- Publish Customer Feedback -->
+
     <section class="card" aria-labelledby="adminTitle">
-      <h1 id="adminTitle">Publish Customer Feedback</h1>
-      <p class="notice">Authorized staff only. Publish feedback manually after obtaining permission from the customer. Do not include private phone numbers or email addresses in reviews.</p>
+
+      <h1 id="adminTitle">
+        Publish Customer Feedback
+      </h1>
+
+      <p class="notice">
+        Authorized staff only. Publish feedback manually
+        after obtaining permission from the customer.
+        Do not include private phone numbers or email
+        addresses in reviews.
+      </p>
+
       <form id="adminReviewForm">
+
         <div class="field">
-          <label for="adminSecret">Admin publishing password *</label>
-          <input id="adminSecret" type="password" autocomplete="off" required minlength="32" placeholder="Enter your private admin key">
+          <label for="adminSecret">
+            Admin Publishing Password *
+          </label>
+
+          <input
+            id="adminSecret"
+            type="password"
+            autocomplete="off"
+            required
+            minlength="8"
+            placeholder="Enter admin password">
         </div>
+
         <div class="row">
+
           <div class="field">
-            <label for="reviewName">Customer display name *</label>
-            <input id="reviewName" name="name" type="text" minlength="2" maxlength="80" required>
+            <label for="reviewName">
+              Customer Display Name *
+            </label>
+
+            <input
+              id="reviewName"
+              name="name"
+              type="text"
+              minlength="2"
+              maxlength="80"
+              required>
           </div>
+
           <div class="field">
-            <label for="reviewDate">Counselling session date *</label>
-            <input id="reviewDate" name="sessionDate" type="date" required>
+            <label for="reviewDate">
+              Counselling Session Date *
+            </label>
+
+            <input
+              id="reviewDate"
+              name="sessionDate"
+              type="date"
+              required>
           </div>
+
         </div>
+
         <div class="field">
-          <label for="reviewCounsellor">Counsellor / Advisor *</label>
-          <input id="reviewCounsellor" name="counsellor" type="text" minlength="2" maxlength="100" required>
+          <label for="reviewCounsellor">
+            Counsellor / Advisor *
+          </label>
+
+          <input
+            id="reviewCounsellor"
+            name="counsellor"
+            type="text"
+            minlength="2"
+            maxlength="100"
+            required>
         </div>
+
         <div class="field">
-          <label for="reviewRating">Customer rating *</label>
-          <select id="reviewRating" name="rating" required>
-            <option value="">Select rating</option>
-            <option value="5">5 stars</option><option value="4">4 stars</option>
-            <option value="3">3 stars</option><option value="2">2 stars</option>
-            <option value="1">1 star</option>
+          <label for="reviewRating">
+            Customer Rating *
+          </label>
+
+          <select
+            id="reviewRating"
+            name="rating"
+            required>
+
+            <option value="">
+              Select Rating
+            </option>
+
+            <option value="5">5 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="2">2 Stars</option>
+            <option value="1">1 Star</option>
+
           </select>
         </div>
+
         <div class="field">
-          <label for="reviewHelpful">Questions addressed *</label>
-          <select id="reviewHelpful" name="helpful" required>
-            <option value="">Select</option><option>Yes</option><option>Partly</option><option>No</option>
+          <label for="reviewHelpful">
+            Questions Addressed *
+          </label>
+
+          <select
+            id="reviewHelpful"
+            name="helpful"
+            required>
+
+            <option value="">Select</option>
+            <option>Yes</option>
+            <option>Partly</option>
+            <option>No</option>
+
           </select>
         </div>
+
         <div class="field">
-          <label for="reviewProfessionalism">Professionalism *</label>
-          <select id="reviewProfessionalism" name="professionalism" required>
-            <option value="">Select</option><option>Excellent</option><option>Good</option>
-            <option>Fair</option><option>Poor</option>
+          <label for="reviewProfessionalism">
+            Professionalism *
+          </label>
+
+          <select
+            id="reviewProfessionalism"
+            name="professionalism"
+            required>
+
+            <option value="">Select</option>
+            <option>Excellent</option>
+            <option>Good</option>
+            <option>Fair</option>
+            <option>Poor</option>
+
           </select>
         </div>
+
         <div class="field">
-          <label for="reviewText">Approved customer feedback *</label>
-          <textarea id="reviewText" name="review" minlength="10" maxlength="1500" rows="5" required></textarea>
+          <label for="reviewText">
+            Approved Customer Feedback *
+          </label>
+
+          <textarea
+            id="reviewText"
+            name="review"
+            minlength="10"
+            maxlength="1500"
+            rows="5"
+            required></textarea>
         </div>
+
         <div class="field">
-          <label for="reviewImprovements">Suggestions (optional)</label>
-          <textarea id="reviewImprovements" name="improvements" maxlength="1000" rows="3"></textarea>
+          <label for="reviewImprovements">
+            Suggestions for Improvement (Optional)
+          </label>
+
+          <textarea
+            id="reviewImprovements"
+            name="improvements"
+            maxlength="1000"
+            rows="3"></textarea>
         </div>
+
         <div class="field check">
-          <input id="approved" name="consent" type="checkbox" required>
-          <label for="approved">I confirm that the customer has approved publishing their feedback and display name on this website.</label>
+
+          <input
+            id="approved"
+            name="consent"
+            type="checkbox"
+            required>
+
+          <label for="approved">
+            I confirm that the customer has approved
+            publishing their feedback and display name
+            on this website.
+          </label>
+
         </div>
-        <button type="submit" class="btn btn-primary" id="publishButton">Publish Review</button>
-        <p id="publishStatus" role="status" aria-live="polite"></p>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="publishButton">
+          Publish Review
+        </button>
+
+        <p
+          id="publishStatus"
+          class="admin-status"
+          role="status"
+          aria-live="polite"></p>
+
       </form>
     </section>
+
+    <!-- Change Admin Password -->
+
+    <section
+      class="card password-card"
+      aria-labelledby="passwordTitle">
+
+      <h2 id="passwordTitle">
+        Change Admin Password
+      </h2>
+
+      <p>
+        Change your admin publishing password whenever needed.
+        Your new password will be used for future reviews.
+      </p>
+
+      <form id="changeAdminPassword">
+
+        <div class="field">
+
+          <label for="currentAdminPassword">
+            Current Password *
+          </label>
+
+          <input
+            type="password"
+            id="currentAdminPassword"
+            autocomplete="current-password"
+            required>
+
+        </div>
+
+        <div class="field">
+
+          <label for="newAdminPassword">
+            New Password *
+          </label>
+
+          <input
+            type="password"
+            id="newAdminPassword"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="64"
+            required>
+
+          <small>
+            Use 8–64 characters. Include letters rather
+            than using only numbers. A password of 16
+            or more characters is recommended.
+          </small>
+
+        </div>
+
+        <div class="field">
+
+          <label for="confirmAdminPassword">
+            Confirm New Password *
+          </label>
+
+          <input
+            type="password"
+            id="confirmAdminPassword"
+            autocomplete="new-password"
+            minlength="8"
+            maxlength="64"
+            required>
+
+        </div>
+
+        <button
+          type="submit"
+          class="btn btn-primary"
+          id="changePasswordButton">
+          Update Password
+        </button>
+
+        <p
+          id="passwordChangeStatus"
+          class="admin-status"
+          role="status"
+          aria-live="polite"></p>
+
+      </form>
+
+    </section>
+
   </main>
 
   <script>
+
+    // ---------- Publish Customer Review ----------
+
     (() => {
-      const form = document.querySelector("#adminReviewForm");
-      const status = document.querySelector("#publishStatus");
-      const button = document.querySelector("#publishButton");
-      const date = document.querySelector("#reviewDate");
+      const form = document.querySelector(
+        "#adminReviewForm"
+      );
+
+      const status = document.querySelector(
+        "#publishStatus"
+      );
+
+      const button = document.querySelector(
+        "#publishButton"
+      );
+
+      const date = document.querySelector(
+        "#reviewDate"
+      );
+
       const now = new Date();
-      date.max = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+
+      date.max =
+        `${now.getFullYear()}-` +
+        `${String(now.getMonth() + 1).padStart(2, "0")}-` +
+        `${String(now.getDate()).padStart(2, "0")}`;
+
       let pending = null;
+
       form.addEventListener("submit", async event => {
         event.preventDefault();
-        if (!form.reportValidity()) return;
+
+        if (!form.reportValidity()) {
+          return;
+        }
+
         const values = new FormData(form);
-        const value = key => String(values.get(key) || "").trim();
+
+        const value = key =>
+          String(values.get(key) || "").trim();
+
         const payload = {
-          name: value("name"), sessionDate: value("sessionDate"),
-          counsellor: value("counsellor"), rating: Number(value("rating")),
-          helpful: value("helpful"), professionalism: value("professionalism"),
-          review: value("review"), improvements: value("improvements"),
+          name: value("name"),
+          sessionDate: value("sessionDate"),
+          counsellor: value("counsellor"),
+          rating: Number(value("rating")),
+          helpful: value("helpful"),
+          professionalism: value("professionalism"),
+          review: value("review"),
+          improvements: value("improvements"),
           consent: values.get("consent") === "on"
         };
+
         const signature = JSON.stringify(payload);
-        if (!pending || pending.signature !== signature) {
-          pending = { signature, requestId: crypto.randomUUID() };
+
+        if (
+          !pending ||
+          pending.signature !== signature
+        ) {
+          pending = {
+            signature,
+            requestId: crypto.randomUUID()
+          };
         }
+
         button.disabled = true;
-        status.textContent = "Publishing…";
+        status.textContent = "Publishing review...";
+
         try {
-          const response = await fetch("/api/reviews", {
-            method: "POST", cache: "no-store",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${document.querySelector("#adminSecret").value}`
-            },
-            body: JSON.stringify({ ...payload, requestId: pending.requestId })
-          });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(result.error || "Publishing failed.");
-          status.textContent = "Review published. It is now visible in Customer Reviews.";
+          const response = await fetch(
+            "/api/reviews",
+            {
+              method: "POST",
+              cache: "no-store",
+
+              headers: {
+                "Content-Type": "application/json",
+
+                Authorization:
+                  `Bearer ${document.querySelector(
+                    "#adminSecret"
+                  ).value}`
+              },
+
+              body: JSON.stringify({
+                ...payload,
+                requestId: pending.requestId
+              })
+            }
+          );
+
+          const result = await response.json()
+            .catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(
+              result.error || "Publishing failed."
+            );
+          }
+
+          status.textContent =
+            "Review published successfully. " +
+            "It is now visible in Customer Reviews.";
+
           pending = null;
-          form.reset(); // Forget the password after publishing.
+
+          form.reset();
+
         } catch (error) {
-          status.textContent = error.message || "Publishing failed.";
+          status.textContent =
+            error.message || "Publishing failed.";
+
         } finally {
           button.disabled = false;
         }
       });
+
     })();
+
+
+    // ---------- Change Admin Password ----------
+
+    (() => {
+      const form = document.getElementById(
+        "changeAdminPassword"
+      );
+
+      const status = document.getElementById(
+        "passwordChangeStatus"
+      );
+
+      const button = document.getElementById(
+        "changePasswordButton"
+      );
+
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+
+        if (!form.reportValidity()) {
+          return;
+        }
+
+        const currentPassword =
+          document.getElementById(
+            "currentAdminPassword"
+          ).value;
+
+        const newPassword =
+          document.getElementById(
+            "newAdminPassword"
+          ).value;
+
+        const confirmPassword =
+          document.getElementById(
+            "confirmAdminPassword"
+          ).value;
+
+        if (newPassword !== confirmPassword) {
+          status.textContent =
+            "New passwords do not match.";
+
+          return;
+        }
+
+        button.disabled = true;
+        status.textContent = "Updating password...";
+
+        try {
+          const response = await fetch(
+            "/api/reviews",
+            {
+              method: "PATCH",
+
+              headers: {
+                "Content-Type": "application/json",
+                Authorization:
+                  `Bearer ${currentPassword}`
+              },
+
+              body: JSON.stringify({
+                newPassword
+              })
+            }
+          );
+
+          const data = await response.json()
+            .catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(
+              data.error ||
+              "Password update failed."
+            );
+          }
+
+          status.textContent =
+            "Password changed successfully! " +
+            "Use your new password to publish reviews.";
+
+          form.reset();
+
+          const publishingPassword =
+            document.getElementById(
+              "adminSecret"
+            );
+
+          if (publishingPassword) {
+            publishingPassword.value = "";
+          }
+
+        } catch (error) {
+          status.textContent =
+            error.message ||
+            "Password update failed.";
+
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+    })();
+
   </script>
+
 </body>
 </html>
