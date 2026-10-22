@@ -1,3 +1,4 @@
+
 /* ---------- Design tokens ---------- */
 :root{
   --teal-900:#0b2f30;
@@ -392,8 +393,9 @@ textarea{resize:vertical;min-height:110px}
 }
 .pillar-copy{display:flex;flex-direction:column;gap:2rem}
 .pillar-grid article{border-top:3px solid var(--brass);padding-top:1rem}
-.pillar-grid h3{font-size:1.15rem}
-.pillar-grid p{margin:0;color:var(--muted)}
+.pillar-grid h3{font-size:1.15rem;text-align:center}
+.pillar-grid p{margin:0;color:var(--muted);max-width:none;text-align:justify}
+.pillar-grid .about-image-wrapper{margin-left:auto;margin-right:0}
 
 /* ---------- About / counsellor ---------- */
 .counsellor{margin-top:3rem;padding-top:3rem;border-top:1px solid var(--line)}
@@ -425,6 +427,8 @@ textarea{resize:vertical;min-height:110px}
 .plain li{padding:.8rem 0;border-top:1px solid var(--line)}
 .plain li:first-child{border-top:0;padding-top:0}
 .bullets{margin:0 0 1em;padding-left:1.2rem}
+.dir-body .bullets{max-width:70ch}
+.dir-body .bullets li{text-align:justify}
 .bullets li{margin-bottom:.5rem}
 .bullets li::marker{color:var(--brass)}
 
