@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Review Publishing | US &amp; LV India</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { background: #f2f5f8; color: #17365d; }
+    .admin-wrap { max-width: 760px; margin: 3rem auto; padding: 0 1rem; }
+    .admin-wrap .card { padding: 2rem; }
+    .admin-wrap h1 { color: #17365d; }
+    .admin-wrap .field { margin-bottom: 1.1rem; }
+    .admin-wrap .notice { font-size: .9rem; color: #355575; }
+    .admin-wrap .check { display: flex; align-items: flex-start; gap: .65rem; }
+    .admin-wrap .check input { width: auto; margin-top: .45rem; }
+    .admin-wrap .check label { font-weight: 400; }
+    .admin-wrap select { color: #17365d; }
+  </style>
+</head>
+<body>
+  <main class="admin-wrap">
+    <a href="/">← Back to website</a>
+    <section class="card" aria-labelledby="adminTitle">
+      <h1 id="adminTitle">Publish Customer Feedback</h1>
+      <p class="notice">Authorized staff only. Publish feedback manually after obtaining permission from the customer. Do not include private phone numbers or email addresses in reviews.</p>
+      <form id="adminReviewForm">
+        <div class="field">
+          <label for="adminSecret">Admin publishing password *</label>
+          <input id="adminSecret" type="password" autocomplete="off" required minlength="32" placeholder="Enter your private admin key">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="reviewName">Customer display name *</label>
+            <input id="reviewName" name="name" type="text" minlength="2" maxlength="80" required>
+          </div>
+          <div class="field">
+            <label for="reviewDate">Counselling session date *</label>
+            <input id="reviewDate" name="sessionDate" type="date" required>
+          </div>
+        </div>
+        <div class="field">
+          <label for="reviewCounsellor">Counsellor / Advisor *</label>
+          <input id="reviewCounsellor" name="counsellor" type="text" minlength="2" maxlength="100" required>
+        </div>
+        <div class="field">
+          <label for="reviewRating">Customer rating *</label>
+          <select id="reviewRating" name="rating" required>
+            <option value="">Select rating</option>
+            <option value="5">5 stars</option><option value="4">4 stars</option>
+            <option value="3">3 stars</option><option value="2">2 stars</option>
+            <option value="1">1 star</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reviewHelpful">Questions addressed *</label>
+          <select id="reviewHelpful" name="helpful" required>
+            <option value="">Select</option><option>Yes</option><option>Partly</option><option>No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reviewProfessionalism">Professionalism *</label>
+          <select id="reviewProfessionalism" name="professionalism" required>
+            <option value="">Select</option><option>Excellent</option><option>Good</option>
+            <option>Fair</option><option>Poor</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="reviewText">Approved customer feedback *</label>
+          <textarea id="reviewText" name="review" minlength="10" maxlength="1500" rows="5" required></textarea>
+        </div>
+        <div class="field">
+          <label for="reviewImprovements">Suggestions (optional)</label>
+          <textarea id="reviewImprovements" name="improvements" maxlength="1000" rows="3"></textarea>
+        </div>
+        <div class="field check">
+          <input id="approved" name="consent" type="checkbox" required>
+          <label for="approved">I confirm that the customer has approved publishing their feedback and display name on this website.</label>
+        </div>
+        <button type="submit" class="btn btn-primary" id="publishButton">Publish Review</button>
+        <p id="publishStatus" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const form = document.querySelector("#adminReviewForm");
+      const status = document.querySelector("#publishStatus");
+      const button = document.querySelector("#publishButton");
+      const date = document.querySelector("#reviewDate");
+      const now = new Date();
+      date.max = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+      let pending = null;
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const values = new FormData(form);
+        const value = key => String(values.get(key) || "").trim();
+        const payload = {
+          name: value("name"), sessionDate: value("sessionDate"),
+          counsellor: value("counsellor"), rating: Number(value("rating")),
+          helpful: value("helpful"), professionalism: value("professionalism"),
+          review: value("review"), improvements: value("improvements"),
+          consent: values.get("consent") === "on"
+        };
+        const signature = JSON.stringify(payload);
+        if (!pending || pending.signature !== signature) {
+          pending = { signature, requestId: crypto.randomUUID() };
+        }
+        button.disabled = true;
+        status.textContent = "Publishing…";
+        try {
+          const response = await fetch("/api/reviews", {
+            method: "POST", cache: "no-store",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${document.querySelector("#adminSecret").value}`
+            },
+            body: JSON.stringify({ ...payload, requestId: pending.requestId })
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(result.error || "Publishing failed.");
+          status.textContent = "Review published. It is now visible in Customer Reviews.";
+          pending = null;
+          form.reset(); // Forget the password after publishing.
+        } catch (error) {
+          status.textContent = error.message || "Publishing failed.";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

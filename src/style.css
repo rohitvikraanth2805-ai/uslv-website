@@ -715,3 +715,20 @@ main li {
   color: var(--ink);
 }
 
+/* ---------- Client request: dark navy text everywhere ---------- */
+:root {
+  --ink: #17365d;    /* body, navigation, form fields */
+  --muted: #365779;  /* secondary copy and captions */
+}
+
+/* The primary button previously used nearly-black lettering. */
+.btn-primary { color: #17365d; }
+
+/* Maintain dark-blue print text instead of black. */
+@media print {
+  h1, .hero p, .hero .lead,
+  .hero-points li, .hero-points strong {
+    color: #17365d;
+  }
+}
+
