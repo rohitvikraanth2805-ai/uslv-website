@@ -6,7 +6,6 @@
   <meta name="robots" content="noindex, nofollow">
 
   <title>Review Publishing | US &amp; LV India</title>
-
   <link rel="stylesheet" href="style.css">
 
   <style>
@@ -88,6 +87,36 @@
       display: none !important;
     }
 
+    .selection-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .75rem;
+      margin: 1rem 0;
+    }
+
+    .publish-choice {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .4rem;
+    }
+
+    .admin-wrap .publish-choice input {
+      width: auto;
+      margin: 0;
+      flex: 0 0 auto;
+    }
+
+    .admin-wrap .publish-choice label {
+      margin: 0;
+      font-size: .9rem;
+      font-weight: 400;
+    }
+
+    .question-answer {
+      margin-top: .4rem;
+    }
+
     @media (max-width: 600px) {
       .admin-wrap .card {
         padding: 1.4rem;
@@ -104,10 +133,9 @@
       <h1 id="adminTitle">Publish Customer Feedback</h1>
 
       <p class="notice">
-        Copy the customer's answers from Google Forms.
-        Publish only feedback approved for this website.
-        Email addresses are saved privately and are not displayed
-        in public testimonials.
+        Select the answers you want to publish.
+        Unchecked answers will not be saved or displayed.
+        Publish only answers approved by the customer for this website.
       </p>
 
       <form id="adminReviewForm">
@@ -123,27 +151,40 @@
               required>
           </div>
 
+          <div class="field">
+            <label for="privateEmail">
+              Email — optional private reference
+            </label>
+            <input id="privateEmail" type="text" maxlength="254">
+            <p class="notice">
+              This value stays in this form only.
+              It is not sent, saved or published.
+            </p>
+          </div>
+
+          <div class="selection-actions">
+            <button type="button" class="btn btn-small" id="selectAll">
+              Select All
+            </button>
+            <button type="button" class="btn btn-small" id="deselectAll">
+              Deselect All
+            </button>
+          </div>
+
+          <p id="selectionCount" class="notice" aria-live="polite"></p>
+
           <div id="questionFields"></div>
 
           <div class="field check">
-            <input
-              id="approved"
-              name="consent"
-              type="checkbox"
-              required>
-
+            <input id="approved" type="checkbox" required>
             <label for="approved">
-              I confirm that the customer has approved publishing
-              these answers and their display name on this website.
-              I have checked the answers for private information.
+              I confirm that the customer approved publishing the
+              selected answers, and I have checked them for private information.
             </label>
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            id="publishButton">
-            Publish Review
+          <button type="submit" class="btn btn-primary">
+            Publish Selected Answers
           </button>
         </fieldset>
 
@@ -155,16 +196,10 @@
       </form>
     </section>
 
-    <section
-      class="card password-card"
-      aria-labelledby="passwordTitle">
-
+    <section class="card password-card" aria-labelledby="passwordTitle">
       <h2 id="passwordTitle">Change Admin Password</h2>
 
-      <p>
-        Change your publishing password here.
-        Use the new password for future reviews.
-      </p>
+      <p>Use your new password for future reviews.</p>
 
       <form id="changeAdminPassword">
         <fieldset id="passwordFields">
@@ -192,7 +227,6 @@
             <small>
               Use 8–64 characters without spaces.
               Letters, numbers and symbols are allowed.
-              A longer, unique password is recommended.
             </small>
           </div>
 
@@ -207,10 +241,7 @@
               required>
           </div>
 
-          <button
-            type="submit"
-            class="btn btn-primary"
-            id="changePasswordButton">
+          <button type="submit" class="btn btn-primary">
             Update Password
           </button>
         </fieldset>
@@ -228,174 +259,232 @@
     (() => {
       "use strict";
 
-      const questions = document.getElementById("questionFields");
+      const questions = [
+        { key: "name", label: "Candidate Name", type: "text", max: 80 },
+        {
+          key: "category",
+          label: "Class / Category",
+          type: "select",
+          options: [
+            "Class 8", "Class 9", "Class 10", "Class 11",
+            "Class 12", "Graduate", "Professional", "Other"
+          ],
+          other: true,
+          max: 100
+        },
+        {
+          key: "sessionDate",
+          label: "Date of Counselling",
+          type: "date"
+        },
+        {
+          key: "preExperience",
+          label: "Pre-Counselling Experience",
+          type: "rating"
+        },
+        {
+          key: "testClarity",
+          label: "Psychometric Test Clarity",
+          type: "rating"
+        },
+        {
+          key: "oneToOne",
+          label: "One-on-One Counselling Session",
+          type: "rating"
+        },
+        {
+          key: "roadmapClarity",
+          label: "Roadmap Clarity",
+          type: "rating"
+        },
+        {
+          key: "rating",
+          label: "Overall Satisfaction",
+          type: "rating"
+        },
+        {
+          key: "confusionBefore",
+          label: "What was your biggest confusion before counselling?",
+          type: "textarea",
+          max: 5000
+        },
+        {
+          key: "clarityAfter",
+          label: "How clear are you now after counselling?",
+          type: "textarea",
+          max: 5000
+        },
+        {
+          key: "recommendedBy",
+          label: "Who recommended US & LV India (OPC) Pvt Ltd?",
+          type: "text",
+          max: 500
+        },
+        {
+          key: "recommend",
+          label: "Would you recommend US & LV India to others?",
+          type: "select",
+          options: ["Yes", "No", "Maybe", "Other"],
+          other: true,
+          max: 500
+        }
+      ];
 
-      function field(name, label, type = "text", maxLength = 500) {
+      const container = document.getElementById("questionFields");
+      const count = document.getElementById("selectionCount");
+      const controls = [];
+
+      function updateCount() {
+        const selected = controls.filter(item => item.checkbox.checked);
+        count.textContent =
+          `${selected.length} of ${questions.length} answers selected.`;
+      }
+
+      for (const question of questions) {
         const wrapper = document.createElement("div");
         wrapper.className = "field";
 
-        const caption = document.createElement("label");
-        caption.htmlFor = name;
-        caption.textContent = `${label} *`;
+        const choice = document.createElement("div");
+        choice.className = "publish-choice";
 
-        const input = document.createElement(
-          type === "textarea" ? "textarea" : "input"
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.id = `publish-${question.key}`;
+        checkbox.checked = true;
+        checkbox.defaultChecked = true;
+
+        const choiceLabel = document.createElement("label");
+        choiceLabel.htmlFor = checkbox.id;
+        choiceLabel.textContent = "Publish this answer";
+
+        checkbox.setAttribute(
+          "aria-label",
+          `Publish answer: ${question.label}`
         );
 
-        input.id = name;
-        input.name = name;
-        input.required = true;
+        choice.append(checkbox, choiceLabel);
 
-        if (type === "textarea") {
+        const label = document.createElement("label");
+        label.htmlFor = question.key;
+        label.textContent = question.label;
+
+        const isSelect =
+          question.type === "select" || question.type === "rating";
+
+        const input = document.createElement(
+          isSelect
+            ? "select"
+            : question.type === "textarea"
+              ? "textarea"
+              : "input"
+        );
+
+        input.id = question.key;
+        input.classList.add("question-answer");
+
+        if (isSelect) {
+          const options = question.type === "rating"
+            ? ["1", "2", "3", "4", "5"]
+            : question.options;
+
+          const placeholder = document.createElement("option");
+          placeholder.value = "";
+          placeholder.textContent = "Select";
+          input.append(placeholder);
+
+          for (const value of options) {
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = value;
+            input.append(option);
+          }
+        } else if (question.type === "textarea") {
           input.rows = 4;
-          input.maxLength = maxLength;
+          input.maxLength = question.max;
         } else {
-          input.type = type;
+          input.type = question.type;
 
-          if (type !== "date") {
-            input.maxLength = maxLength;
+          if (question.max) {
+            input.maxLength = question.max;
+          }
+
+          if (question.type === "date") {
+            const now = new Date();
+
+            input.max =
+              `${now.getFullYear()}-` +
+              `${String(now.getMonth() + 1).padStart(2, "0")}-` +
+              `${String(now.getDate()).padStart(2, "0")}`;
           }
         }
 
-        wrapper.append(caption, input);
-        questions.append(wrapper);
+        wrapper.append(choice, label, input);
 
-        return { wrapper, input };
+        if (question.type === "rating") {
+          const hint = document.createElement("p");
+          hint.className = "notice";
+          hint.textContent = "1 = Not satisfied, 5 = Excellent";
+          wrapper.append(hint);
+        }
+
+        let other = null;
+
+        if (question.other) {
+          other = document.createElement("input");
+          other.type = "text";
+          other.maxLength = question.max;
+          other.placeholder = "Enter the customer's Other answer";
+          other.setAttribute("aria-label", `${question.label}: Other`);
+          wrapper.append(other);
+        }
+
+        const item = { question, checkbox, input, other };
+
+        item.sync = () => {
+          const selected = checkbox.checked;
+
+          input.disabled = !selected;
+          input.required = selected;
+
+          if (other) {
+            const needsOther = selected && input.value === "Other";
+
+            other.hidden = !needsOther;
+            other.disabled = !needsOther;
+            other.required = needsOther;
+          }
+
+          updateCount();
+        };
+
+        controls.push(item);
+        checkbox.addEventListener("change", item.sync);
+        input.addEventListener("change", item.sync);
+
+        container.append(wrapper);
       }
 
-      function select(name, label, options) {
-        const wrapper = document.createElement("div");
-        wrapper.className = "field";
+      function syncAll() {
+        controls.forEach(item => item.sync());
+      }
 
-        const caption = document.createElement("label");
-        caption.htmlFor = name;
-        caption.textContent = `${label} *`;
-
-        const input = document.createElement("select");
-        input.id = name;
-        input.name = name;
-        input.required = true;
-
-        const placeholder = document.createElement("option");
-        placeholder.value = "";
-        placeholder.textContent = "Select";
-        input.append(placeholder);
-
-        options.forEach(value => {
-          const option = document.createElement("option");
-          option.value = String(value);
-          option.textContent = String(value);
-          input.append(option);
+      document.getElementById("selectAll").addEventListener("click", () => {
+        controls.forEach(item => {
+          item.checkbox.checked = true;
         });
 
-        wrapper.append(caption, input);
-        questions.append(wrapper);
-
-        return input;
-      }
-
-      field("email", "Email (private — not published)", "email", 254);
-      field("name", "Candidate Name", "text", 80);
-
-      const category = select(
-        "categoryChoice",
-        "Class / Category",
-        [
-          "Class 8",
-          "Class 9",
-          "Class 10",
-          "Class 11",
-          "Class 12",
-          "Graduate",
-          "Professional",
-          "Other"
-        ]
-      );
-
-      const categoryOther = field(
-        "categoryOther",
-        "Other Class / Category",
-        "text",
-        100
-      );
-
-      const date = field(
-        "sessionDate",
-        "Date of Counselling",
-        "date"
-      ).input;
-
-      const now = new Date();
-
-      date.max =
-        `${now.getFullYear()}-` +
-        `${String(now.getMonth() + 1).padStart(2, "0")}-` +
-        `${String(now.getDate()).padStart(2, "0")}`;
-
-      const ratings = [
-        ["preExperience", "Pre-Counselling Experience"],
-        ["testClarity", "Psychometric Test Clarity"],
-        ["oneToOne", "One-on-One Counselling Session"],
-        ["roadmapClarity", "Roadmap Clarity"],
-        ["rating", "Overall Satisfaction"]
-      ];
-
-      ratings.forEach(([name, label]) => {
-        select(name, `${label} (1 = Not satisfied, 5 = Excellent)`, [
-          1, 2, 3, 4, 5
-        ]);
+        syncAll();
       });
 
-      field(
-        "confusionBefore",
-        "What was your biggest confusion before counselling?",
-        "textarea",
-        5000
-      );
+      document.getElementById("deselectAll").addEventListener("click", () => {
+        controls.forEach(item => {
+          item.checkbox.checked = false;
+        });
 
-      field(
-        "clarityAfter",
-        "How clear are you now after counselling?",
-        "textarea",
-        5000
-      );
+        syncAll();
+      });
 
-      field(
-        "recommendedBy",
-        "Who recommended US & LV India (OPC) Pvt Ltd?",
-        "text",
-        500
-      );
-
-      const recommend = select(
-        "recommendChoice",
-        "Would you recommend US & LV India to others?",
-        ["Yes", "No", "Maybe", "Other"]
-      );
-
-      const recommendOther = field(
-        "recommendOther",
-        "Other recommendation answer",
-        "text",
-        500
-      );
-
-      function updateOther(choice, other) {
-        const visible = choice.value === "Other";
-
-        other.wrapper.hidden = !visible;
-        other.input.disabled = !visible;
-        other.input.required = visible;
-      }
-
-      function syncOtherFields() {
-        updateOther(category, categoryOther);
-        updateOther(recommend, recommendOther);
-      }
-
-      category.addEventListener("change", syncOtherFields);
-      recommend.addEventListener("change", syncOtherFields);
-      syncOtherFields();
+      syncAll();
 
       async function send(method, password, payload) {
         const response = await fetch("/api/reviews", {
@@ -422,8 +511,8 @@
       }
 
       const form = document.getElementById("adminReviewForm");
-      const status = document.getElementById("publishStatus");
       const fields = document.getElementById("reviewFields");
+      const status = document.getElementById("publishStatus");
 
       let pending = null;
       let publishing = false;
@@ -431,33 +520,35 @@
       form.addEventListener("submit", async event => {
         event.preventDefault();
 
-        if (publishing || !form.reportValidity()) return;
+        if (publishing) return;
 
-        const values = new FormData(form);
+        const selected = controls.filter(item => item.checkbox.checked);
 
-        const value = key =>
-          String(values.get(key) || "").trim();
+        if (!selected.length) {
+          status.textContent = "Select at least one answer to publish.";
+          return;
+        }
+
+        if (!form.reportValidity()) return;
 
         const payload = {
-          email: value("email"),
-          name: value("name"),
-          category: value("categoryChoice") === "Other"
-            ? value("categoryOther")
-            : value("categoryChoice"),
-          sessionDate: value("sessionDate"),
-          confusionBefore: value("confusionBefore"),
-          clarityAfter: value("clarityAfter"),
-          recommendedBy: value("recommendedBy"),
-          recommend: value("recommendChoice") === "Other"
-            ? value("recommendOther")
-            : value("recommendChoice"),
-          consent: values.get("consent") === "on"
+          selectedFields: selected.map(item => item.question.key),
+          consent: document.getElementById("approved").checked
         };
 
-        ratings.forEach(([key]) => {
-          payload[key] = Number(value(key));
-        });
+        for (const item of selected) {
+          let value = item.other && item.input.value === "Other"
+            ? item.other.value.trim()
+            : item.input.value.trim();
 
+          if (item.question.type === "rating") {
+            value = Number(value);
+          }
+
+          payload[item.question.key] = value;
+        }
+
+        // Unchecked answers and the private email are never sent.
         const signature = JSON.stringify(payload);
 
         if (!pending || pending.signature !== signature) {
@@ -471,7 +562,7 @@
 
         publishing = true;
         fields.disabled = true;
-        status.textContent = "Publishing review...";
+        status.textContent = "Publishing selected answers...";
 
         try {
           await send("POST", password, {
@@ -480,19 +571,18 @@
           });
 
           status.textContent =
-            "Review published successfully. Open Testimonials and click Refresh Reviews.";
+            "Selected answers published successfully. Open Testimonials and click Refresh Reviews.";
 
           pending = null;
           form.reset();
-          syncOtherFields();
+          syncAll();
         } catch (error) {
-          status.textContent =
-            error.name === "TimeoutError"
-              ? "The request timed out. Retry with the same answers to avoid duplicates."
-              : error.message;
+          status.textContent = error.name === "TimeoutError"
+            ? "Request timed out. Retry with the same selection and answers."
+            : error.message;
         } finally {
-          fields.disabled = false;
           publishing = false;
+          fields.disabled = false;
         }
       });
 
@@ -513,17 +603,17 @@
         const newPassword =
           document.getElementById("newAdminPassword").value;
 
-        const confirmPassword =
+        const confirmation =
           document.getElementById("confirmAdminPassword").value;
 
-        if (newPassword !== confirmPassword) {
+        if (newPassword !== confirmation) {
           passwordStatus.textContent = "New passwords do not match.";
           return;
         }
 
         if (!/^[\x21-\x7E]{8,64}$/.test(newPassword)) {
           passwordStatus.textContent =
-            "Use 8–64 characters without spaces: letters, numbers and symbols.";
+            "Use 8–64 characters without spaces.";
           return;
         }
 

@@ -6,6 +6,7 @@ import {
   scrypt,
   timingSafeEqual
 } from "node:crypto";
+
 import { promisify } from "node:util";
 
 const derive = promisify(scrypt);
@@ -22,11 +23,7 @@ const RATINGS = [
   "rating"
 ];
 
-// Email addresses and password information are never returned publicly.
-const PUBLIC_FIELDS = [
-  "id",
-  "schemaVersion",
-  "createdAt",
+const FIELDS = [
   "name",
   "category",
   "sessionDate",
@@ -34,9 +31,10 @@ const PUBLIC_FIELDS = [
   "confusionBefore",
   "clarityAfter",
   "recommendedBy",
-  "recommend",
+  "recommend"
+];
 
-  // Support existing reviews saved using the older form.
+const LEGACY = [
   "counsellor",
   "review",
   "helpful",
@@ -45,30 +43,30 @@ const PUBLIC_FIELDS = [
 ];
 
 const LIMIT = `
-  local n = redis.call("INCR", KEYS[1])
+  local n = redis.call('INCR', KEYS[1])
 
   if n == 1 then
-    redis.call("EXPIRE", KEYS[1], ARGV[1])
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
   end
 
   return n
 `;
 
 const CHANGE_PASSWORD = `
-  if redis.call("GET", KEYS[1]) ~= ARGV[1] then
+  if redis.call('GET', KEYS[1]) ~= ARGV[1] then
     return 0
   end
 
-  redis.call("SET", KEYS[1], ARGV[2])
+  redis.call('SET', KEYS[1], ARGV[2])
   return 1
 `;
 
 const SAVE_REVIEW = `
-  if redis.call("GET", KEYS[4]) ~= ARGV[3] then
+  if redis.call('GET', KEYS[4]) ~= ARGV[3] then
     return 4
   end
 
-  local previous = redis.call("GET", KEYS[3])
+  local previous = redis.call('GET', KEYS[3])
 
   if previous then
     if previous == ARGV[2] then
@@ -78,20 +76,20 @@ const SAVE_REVIEW = `
     return 3
   end
 
-  local count = tonumber(redis.call("GET", KEYS[2]) or "0")
+  local count = tonumber(redis.call('GET', KEYS[2]) or '0')
 
   if count >= 5 then
     return 0
   end
 
-  local updated = redis.call("INCR", KEYS[2])
+  local updated = redis.call('INCR', KEYS[2])
 
   if updated == 1 then
-    redis.call("EXPIRE", KEYS[2], 3600)
+    redis.call('EXPIRE', KEYS[2], 3600)
   end
 
-  redis.call("LPUSH", KEYS[1], ARGV[1])
-  redis.call("SET", KEYS[3], ARGV[2], "EX", 86400)
+  redis.call('LPUSH', KEYS[1], ARGV[1])
+  redis.call('SET', KEYS[3], ARGV[2], 'EX', 86400)
 
   return 1
 `;
@@ -140,9 +138,11 @@ async function matches(password, stored) {
   }
 
   const [salt, hash] = stored.split(":");
-  const candidate = await derive(password, salt, 64);
 
-  return timingSafeEqual(candidate, Buffer.from(hash, "hex"));
+  return timingSafeEqual(
+    await derive(password, salt, 64),
+    Buffer.from(hash, "hex")
+  );
 }
 
 async function authenticate(req) {
@@ -208,67 +208,82 @@ async function authenticate(req) {
 }
 
 function validate(body) {
-  const text = (key, max, required = true) => {
-    const value = body[key];
-
-    if (typeof value !== "string") {
-      fail(`Please check ${key}.`);
-    }
-
-    const result = value.trim();
-
-    if ((required && !result) || result.length > max) {
-      fail(`Please check ${key}.`);
-    }
-
-    return result;
-  };
-
-  const review = {
-    schemaVersion: 2,
-    name: text("name", 80),
-    email: text("email", 254),
-    category: text("category", 100),
-    sessionDate: text("sessionDate", 10),
-    confusionBefore: text("confusionBefore", 5000),
-    clarityAfter: text("clarityAfter", 5000),
-    recommendedBy: text("recommendedBy", 500),
-    recommend: text("recommend", 500)
-  };
-
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(review.email)) {
-    fail("Enter a valid email address.");
-  }
-
-  for (const field of RATINGS) {
-    if (
-      !Number.isInteger(body[field]) ||
-      body[field] < 1 ||
-      body[field] > 5
-    ) {
-      fail("Select all five ratings from 1 to 5.");
-    }
-
-    review[field] = body[field];
-  }
-
-  const date = new Date(`${review.sessionDate}T00:00:00Z`);
-
-  const latest = new Date(
-    Date.now() + 14 * 60 * 60 * 1000
-  ).toISOString().slice(0, 10);
+  // Existing Google Sheets requests have no selection list.
+  // Keep supporting them by including all their public answers.
+  const requested = body.selectedFields === undefined
+    ? FIELDS
+    : body.selectedFields;
 
   if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(review.sessionDate) ||
-    Number.isNaN(date.getTime()) ||
-    date.toISOString().slice(0, 10) !== review.sessionDate ||
-    review.sessionDate > latest
+    !Array.isArray(requested) ||
+    !requested.length ||
+    requested.length > FIELDS.length ||
+    requested.some(key => !FIELDS.includes(key))
   ) {
-    fail("Enter a valid past or current counselling date.");
+    fail("Select at least one valid answer to publish.");
+  }
+
+  const selected = FIELDS.filter(key => requested.includes(key));
+
+  const review = {
+    schemaVersion: 3,
+    selectedFields: selected
+  };
+
+  const limits = {
+    name: 80,
+    category: 100,
+    sessionDate: 10,
+    confusionBefore: 5000,
+    clarityAfter: 5000,
+    recommendedBy: 500,
+    recommend: 500
+  };
+
+  // Validate and save ONLY the selected fields.
+  for (const key of selected) {
+    if (RATINGS.includes(key)) {
+      if (
+        !Number.isInteger(body[key]) ||
+        body[key] < 1 ||
+        body[key] > 5
+      ) {
+        fail(`Choose a rating from 1 to 5 for ${key}.`);
+      }
+
+      review[key] = body[key];
+    } else {
+      if (
+        typeof body[key] !== "string" ||
+        !body[key].trim() ||
+        body[key].trim().length > limits[key]
+      ) {
+        fail(`Please check ${key}.`);
+      }
+
+      review[key] = body[key].trim();
+    }
+  }
+
+  if (selected.includes("sessionDate")) {
+    const date = new Date(`${review.sessionDate}T00:00:00Z`);
+
+    const latest = new Date(
+      Date.now() + 14 * 60 * 60 * 1000
+    ).toISOString().slice(0, 10);
+
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(review.sessionDate) ||
+      Number.isNaN(date.getTime()) ||
+      date.toISOString().slice(0, 10) !== review.sessionDate ||
+      review.sessionDate > latest
+    ) {
+      fail("Enter a valid past or current counselling date.");
+    }
   }
 
   if (body.consent !== true) {
-    fail("Confirm permission to publish this feedback.");
+    fail("Confirm permission to publish the selected answers.");
   }
 
   if (
@@ -281,6 +296,30 @@ function validate(body) {
   }
 
   return review;
+}
+
+function publicReview(record) {
+  const fields = record.schemaVersion === 3
+    ? FIELDS.filter(key =>
+        Array.isArray(record.selectedFields) &&
+        record.selectedFields.includes(key)
+      )
+    : [...FIELDS, ...LEGACY];
+
+  const result = {};
+
+  for (const key of ["id", "schemaVersion", "createdAt", ...fields]) {
+    if (Object.hasOwn(record, key)) {
+      result[key] = record[key];
+    }
+  }
+
+  if (record.schemaVersion === 3) {
+    result.selectedFields = fields;
+  }
+
+  // Email and password information are never included.
+  return result;
 }
 
 export default async function handler(req, res) {
@@ -305,7 +344,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Public: load reviews without exposing email addresses.
     if (req.method === "GET") {
       const page = new URL(
         req.url,
@@ -325,20 +363,12 @@ export default async function handler(req, res) {
         start + PAGE_SIZE
       ]);
 
-      const reviews = rows.slice(0, PAGE_SIZE).map(row => {
-        const record = typeof row === "string"
-          ? JSON.parse(row)
-          : row;
-
-        return Object.fromEntries(
-          PUBLIC_FIELDS
-            .filter(key => Object.hasOwn(record, key))
-            .map(key => [key, record[key]])
-        );
-      });
-
       return res.status(200).json({
-        reviews,
+        reviews: rows.slice(0, PAGE_SIZE).map(row =>
+          publicReview(
+            typeof row === "string" ? JSON.parse(row) : row
+          )
+        ),
         hasMore: rows.length > PAGE_SIZE
       });
     }
@@ -348,7 +378,7 @@ export default async function handler(req, res) {
         .toLowerCase()
         .startsWith("application/json")
     ) {
-      fail("Use the admin form to submit data.", 415);
+      fail("Use the admin form.", 415);
     }
 
     let body;
@@ -369,7 +399,6 @@ export default async function handler(req, res) {
       fail("Request is too large.", 413);
     }
 
-    // Both publishing and changing passwords require authentication.
     const auth = await authenticate(req);
 
     if (req.method === "PATCH") {
@@ -377,13 +406,9 @@ export default async function handler(req, res) {
 
       if (
         typeof next !== "string" ||
-        next.length < 8 ||
-        next.length > 64 ||
-        !/^[\x21-\x7E]+$/.test(next)
+        !/^[\x21-\x7E]{8,64}$/.test(next)
       ) {
-        fail(
-          "Use 8–64 characters without spaces; letters, numbers and symbols are allowed."
-        );
+        fail("Use 8–64 characters without spaces.");
       }
 
       const result = Number(
@@ -443,7 +468,7 @@ export default async function handler(req, res) {
 
     if (result === 3) {
       fail(
-        "This request was already used for different feedback. Reload the page.",
+        "This request was already used for different feedback. Reload before a new submission.",
         409
       );
     }
@@ -463,7 +488,7 @@ export default async function handler(req, res) {
     return res.status(error.status || 503).json({
       error: error.status
         ? error.message
-        : "The operation could not be confirmed. Retry with the same details."
+        : "Operation not confirmed. Retry with the same details."
     });
   }
 }

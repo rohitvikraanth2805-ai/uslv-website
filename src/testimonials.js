@@ -19,9 +19,7 @@
       </div>
 
       <p>Feedback from our counselling clients.</p>
-
       <p id="reviewsStatus" role="status" aria-live="polite"></p>
-
       <div id="reviewsList" class="review-list"></div>
 
       <button
@@ -102,16 +100,23 @@
   let page = 0;
   let loading = false;
 
-  function paragraph(content, className = "review-text") {
-    const element = document.createElement("p");
-    element.textContent = content;
-    element.className = className;
-    return element;
+  function isIncluded(review, key) {
+    if (
+      review.schemaVersion === 3 &&
+      (
+        !Array.isArray(review.selectedFields) ||
+        !review.selectedFields.includes(key)
+      )
+    ) {
+      return false;
+    }
+
+    return review[key] !== undefined &&
+      review[key] !== null &&
+      review[key] !== "";
   }
 
   function answer(card, label, value) {
-    if (value === undefined || value === null || value === "") return;
-
     const element = document.createElement("p");
     element.className = "review-text";
 
@@ -123,8 +128,6 @@
   }
 
   function dateLabel(value) {
-    if (!value) return "";
-
     const date = new Date(`${value}T12:00:00`);
 
     if (Number.isNaN(date.getTime())) return String(value);
@@ -145,94 +148,110 @@
     heading.className = "review-heading";
 
     const name = document.createElement("h3");
-    name.textContent = review.name || "Customer";
 
-    const rating = Math.min(
-      5,
-      Math.max(0, Math.trunc(Number(review.rating) || 0))
-    );
+    name.textContent = isIncluded(review, "name")
+      ? review.name
+      : "Customer feedback";
 
-    const stars = document.createElement("span");
-    stars.className = "review-stars";
-    stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
+    heading.append(name);
 
-    stars.setAttribute(
-      "aria-label",
-      `Overall satisfaction: ${rating} out of 5 stars`
-    );
+    // No star rating is shown if Overall Satisfaction was unchecked.
+    if (isIncluded(review, "rating")) {
+      const rating = Math.min(
+        5,
+        Math.max(0, Math.trunc(Number(review.rating) || 0))
+      );
 
-    heading.append(name, stars);
+      const stars = document.createElement("span");
+      stars.className = "review-stars";
+      stars.textContent = "★".repeat(rating) + "☆".repeat(5 - rating);
+
+      stars.setAttribute(
+        "aria-label",
+        `Overall satisfaction: ${rating} out of 5 stars`
+      );
+
+      heading.append(stars);
+    }
+
     card.append(heading);
 
-    const when = dateLabel(review.sessionDate);
-
-    if (review.schemaVersion === 2) {
-      answer(card, "Class / Category", review.category);
-      answer(card, "Date of Counselling", when);
-
-      const ratings = [
+    if (review.schemaVersion === 2 || review.schemaVersion === 3) {
+      const fields = [
+        ["category", "Class / Category"],
+        ["sessionDate", "Date of Counselling"],
         ["preExperience", "Pre-Counselling Experience"],
         ["testClarity", "Psychometric Test Clarity"],
         ["oneToOne", "One-on-One Counselling Session"],
         ["roadmapClarity", "Roadmap Clarity"],
-        ["rating", "Overall Satisfaction"]
+        ["rating", "Overall Satisfaction"],
+        [
+          "confusionBefore",
+          "What was your biggest confusion before counselling?"
+        ],
+        [
+          "clarityAfter",
+          "How clear are you now after counselling?"
+        ],
+        [
+          "recommendedBy",
+          "Who recommended US & LV India (OPC) Pvt Ltd?"
+        ],
+        [
+          "recommend",
+          "Would you recommend US & LV India to others?"
+        ]
       ];
 
-      ratings.forEach(([key, label]) => {
-        if (review[key] !== undefined) {
-          answer(card, label, `${review[key]} / 5`);
+      const ratingFields = new Set([
+        "preExperience",
+        "testClarity",
+        "oneToOne",
+        "roadmapClarity",
+        "rating"
+      ]);
+
+      for (const [key, label] of fields) {
+        if (!isIncluded(review, key)) continue;
+
+        let value = review[key];
+
+        if (key === "sessionDate") {
+          value = dateLabel(value);
+        } else if (ratingFields.has(key)) {
+          value = `${value} / 5`;
         }
-      });
 
-      answer(
-        card,
-        "What was your biggest confusion before counselling?",
-        review.confusionBefore
-      );
-
-      answer(
-        card,
-        "How clear are you now after counselling?",
-        review.clarityAfter
-      );
-
-      answer(
-        card,
-        "Who recommended US & LV India (OPC) Pvt Ltd?",
-        review.recommendedBy
-      );
-
-      answer(
-        card,
-        "Would you recommend US & LV India to others?",
-        review.recommend
-      );
+        answer(card, label, value);
+      }
     } else {
-      const metadata = [];
-
-      if (review.counsellor) {
-        metadata.push(`Counsellor: ${review.counsellor}`);
+      // Preserve reviews created before the Google Form field update.
+      if (isIncluded(review, "counsellor")) {
+        answer(card, "Counsellor", review.counsellor);
       }
 
-      if (when) {
-        metadata.push(`Session: ${when}`);
+      if (isIncluded(review, "sessionDate")) {
+        answer(card, "Session", dateLabel(review.sessionDate));
       }
 
-      if (metadata.length) {
-        card.append(paragraph(metadata.join(" • "), "review-meta"));
+      if (isIncluded(review, "review")) {
+        const text = document.createElement("p");
+        text.className = "review-text";
+        text.textContent = review.review;
+        card.append(text);
       }
 
-      if (review.review) {
-        card.append(paragraph(review.review));
+      for (const [key, label] of [
+        ["helpful", "Questions addressed"],
+        ["professionalism", "Professionalism"],
+        ["improvements", "Suggestions"]
+      ]) {
+        if (isIncluded(review, key)) {
+          answer(card, label, review[key]);
+        }
       }
-
-      answer(card, "Questions addressed", review.helpful);
-      answer(card, "Professionalism", review.professionalism);
-      answer(card, "Suggestions", review.improvements);
     }
 
-    // Never render the customer's email address.
-    // Customer text is inserted as textContent/text nodes, not HTML.
     return card;
   }
 
@@ -259,8 +278,7 @@
 
       if (!response.ok || !Array.isArray(data?.reviews)) {
         throw new Error(
-          data?.error ||
-          "Reviews could not be loaded. Please use the deployed website."
+          data?.error || "Reviews could not be loaded."
         );
       }
 
@@ -281,8 +299,6 @@
 
       page = requestedPage + 1;
       more.hidden = !data.hasMore;
-
-      // Preserve the existing blank state when no reviews exist.
       status.textContent = "";
     } catch (error) {
       status.textContent = error.name === "TimeoutError"
