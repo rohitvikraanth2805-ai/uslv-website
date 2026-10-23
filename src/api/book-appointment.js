@@ -1,4 +1,3 @@
-
 import nodemailer from "nodemailer";
 
 const EMAIL_USER = process.env.EMAIL_USER;
@@ -13,12 +12,99 @@ const clean = (value) =>
 const validEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
 
+// Safely display customer input inside the HTML email.
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 const SERVICES = [
   "Career Counselling",
   "Financial Advisory",
   "Educational Advisory",
   "Corporate Training",
 ];
+
+function createBookingHtml(details) {
+  const rows = details
+    .map(
+      ([label, value]) => `
+        <tr>
+          <th
+            scope="row"
+            width="32%"
+            align="left"
+            valign="top"
+            style="width:32%; padding:12px; border:1px solid #dddddd;
+              background-color:#f5f5f5; font-weight:bold; text-align:left;
+              vertical-align:top;"
+          >
+            ${escapeHtml(label)}
+          </th>
+          <td
+            align="left"
+            valign="top"
+            style="padding:12px; border:1px solid #dddddd;
+              text-align:left; vertical-align:top;
+              overflow-wrap:anywhere; word-wrap:break-word;
+              word-break:break-word;"
+          >
+            ${escapeHtml(value).replace(/\r\n|\r|\n/g, "<br>")}
+          </td>
+        </tr>
+      `
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>New Appointment Request</title>
+  </head>
+  <body
+    style="margin:0; padding:16px; background-color:#ffffff;
+      font-family:Arial,Helvetica,sans-serif; color:#222222;"
+  >
+    <div style="width:100%; max-width:640px; margin:0 auto;">
+      <h2 style="margin:0 0 12px; font-size:22px; line-height:1.4;">
+        New Appointment Request
+      </h2>
+
+      <p style="margin:0 0 20px; font-size:14px; line-height:1.6;">
+        A customer has submitted an appointment request through
+        the US &amp; LV website.
+      </p>
+
+      <table
+        width="100%"
+        cellpadding="0"
+        cellspacing="0"
+        style="width:100%; border-collapse:collapse; table-layout:fixed;
+          font-family:Arial,Helvetica,sans-serif;
+          font-size:14px; line-height:1.6;"
+      >
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <p style="margin:20px 0 0; font-size:14px; line-height:1.6;">
+        Reply to this email to contact the customer directly.
+      </p>
+
+      <p style="margin:16px 0 0; font-size:14px; line-height:1.6;">
+        Best regards,<br>
+        <strong>US &amp; LV Website</strong>
+      </p>
+    </div>
+  </body>
+</html>`;
+}
 
 export default async function handler(req, res) {
   // Accept appointment submissions only.
@@ -110,6 +196,16 @@ export default async function handler(req, res) {
     timeZone: "Asia/Kolkata",
   });
 
+  const bookingDetails = [
+    ["Name", name],
+    ["Phone", phone],
+    ["Email", email],
+    ["Age", age ?? "Not provided"],
+    ["Service", service],
+    ["Message", message || "None"],
+    ["Request received", `${timestamp} IST`],
+  ];
+
   // Connect to Gmail using your Vercel environment variables.
   const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -125,7 +221,7 @@ export default async function handler(req, res) {
   });
 
   try {
-    // EMAIL 1: Send the booking details to you.
+    // EMAIL 1: Send booking details to the owner in a table.
     await transporter.sendMail({
       from: `"US & LV Website" <${EMAIL_USER}>`,
       to: OWNER_EMAIL,
@@ -143,11 +239,13 @@ export default async function handler(req, res) {
         `Message: ${message || "None"}`,
         `Booking time: ${timestamp} IST`,
       ].join("\n"),
+
+      html: createBookingHtml(bookingDetails),
     });
 
     console.log("Owner notification email sent.");
 
-    // EMAIL 2: Send a confirmation email to the client.
+    // EMAIL 2: Send the original confirmation email to the client.
     let customerEmailSent = false;
 
     try {
@@ -191,8 +289,7 @@ export default async function handler(req, res) {
       );
     }
 
-    // The owner's notification succeeded even if the second
-    // email fails, so do not invite a duplicate booking submission.
+    // Avoid inviting duplicate bookings if only confirmation fails.
     return res.status(200).json({
       success: true,
       customerEmailSent,
