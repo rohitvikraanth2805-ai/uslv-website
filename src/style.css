@@ -856,3 +856,17 @@ main li {
     display: none;
   }
 }
+/* Show only the floating logo, without its white box */
+.uslv-floating-contact {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.uslv-floating-contact img {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
