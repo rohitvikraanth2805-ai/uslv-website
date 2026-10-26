@@ -139,11 +139,10 @@
         Publish only answers approved by the customer for this website.
       </p>
 
-      <p
-        id="importStatus"
-        class="admin-status"
-        role="status"
-        aria-live="polite"></p>
+      <p id="importStatus"
+         class="admin-status"
+         role="status"
+         aria-live="polite"></p>
 
       <form id="adminReviewForm">
         <fieldset id="reviewFields">
@@ -174,7 +173,6 @@
             <button type="button" class="btn btn-small" id="selectAll">
               Select All
             </button>
-
             <button type="button" class="btn btn-small" id="deselectAll">
               Deselect All
             </button>
@@ -197,17 +195,15 @@
           </button>
         </fieldset>
 
-        <p
-          id="publishStatus"
-          class="admin-status"
-          role="status"
-          aria-live="polite"></p>
+        <p id="publishStatus"
+           class="admin-status"
+           role="status"
+           aria-live="polite"></p>
       </form>
     </section>
 
     <section class="card password-card" aria-labelledby="passwordTitle">
       <h2 id="passwordTitle">Change Admin Password</h2>
-
       <p>Use your new password for future reviews.</p>
 
       <form id="changeAdminPassword">
@@ -232,7 +228,6 @@
               minlength="8"
               maxlength="64"
               required>
-
             <small>
               Use 8–64 characters without spaces.
               Letters, numbers and symbols are allowed.
@@ -255,11 +250,10 @@
           </button>
         </fieldset>
 
-        <p
-          id="passwordChangeStatus"
-          class="admin-status"
-          role="status"
-          aria-live="polite"></p>
+        <p id="passwordChangeStatus"
+           class="admin-status"
+           role="status"
+           aria-live="polite"></p>
       </form>
     </section>
   </main>
@@ -350,7 +344,6 @@
 
       function updateCount() {
         const selected = controls.filter(item => item.checkbox.checked);
-
         count.textContent =
           `${selected.length} of ${questions.length} answers selected.`;
       }
@@ -367,15 +360,14 @@
         checkbox.id = `publish-${question.key}`;
         checkbox.checked = true;
         checkbox.defaultChecked = true;
-
-        const choiceLabel = document.createElement("label");
-        choiceLabel.htmlFor = checkbox.id;
-        choiceLabel.textContent = "Publish this answer";
-
         checkbox.setAttribute(
           "aria-label",
           `Publish answer: ${question.label}`
         );
+
+        const choiceLabel = document.createElement("label");
+        choiceLabel.htmlFor = checkbox.id;
+        choiceLabel.textContent = "Publish this answer";
 
         choice.append(checkbox, choiceLabel);
 
@@ -425,7 +417,6 @@
 
           if (question.type === "date") {
             const now = new Date();
-
             input.max =
               `${now.getFullYear()}-` +
               `${String(now.getMonth() + 1).padStart(2, "0")}-` +
@@ -457,13 +448,11 @@
 
         item.sync = () => {
           const selected = checkbox.checked;
-
           input.disabled = !selected;
           input.required = selected;
 
           if (other) {
             const needsOther = selected && input.value === "Other";
-
             other.hidden = !needsOther;
             other.disabled = !needsOther;
             other.required = needsOther;
@@ -473,10 +462,8 @@
         };
 
         controls.push(item);
-
         checkbox.addEventListener("change", item.sync);
         input.addEventListener("change", item.sync);
-
         container.append(wrapper);
       }
 
@@ -488,7 +475,6 @@
         controls.forEach(item => {
           item.checkbox.checked = true;
         });
-
         syncAll();
       });
 
@@ -496,20 +482,475 @@
         controls.forEach(item => {
           item.checkbox.checked = false;
         });
-
         syncAll();
       });
 
       syncAll();
 
-      // Read the selected response from the Google Sheets import link.
+      function openBulkImport(imported) {
+        const uuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+        if (
+          !Array.isArray(imported.reviews) ||
+          !imported.reviews.length ||
+          imported.reviews.length > 20
+        ) {
+          throw new Error("Import between 1 and 20 reviews.");
+        }
+
+        const ids = new Set();
+
+        // Validate the complete import before changing the page.
+        for (const record of imported.reviews) {
+          if (
+            !record ||
+            !uuid.test(record.sourceId) ||
+            ids.has(record.sourceId.toLowerCase()) ||
+            !Number.isInteger(record.row) ||
+            record.row < 2 ||
+            !record.answers ||
+            typeof record.answers !== "object" ||
+            Array.isArray(record.answers)
+          ) {
+            throw new Error("Invalid or duplicate response in the import link.");
+          }
+
+          ids.add(record.sourceId.toLowerCase());
+
+          for (const question of questions) {
+            const raw = record.answers[question.key];
+
+            if (
+              raw != null &&
+              typeof raw !== "string" &&
+              typeof raw !== "number"
+            ) {
+              throw new Error("Invalid answer in row " + record.row);
+            }
+
+            const value = String(raw ?? "").trim();
+
+            if (
+              value.length > (question.max || 10) ||
+              (
+                value &&
+                question.type === "rating" &&
+                !/^[1-5]$/.test(value)
+              )
+            ) {
+              throw new Error(
+                "Check " + question.label + " in row " + record.row
+              );
+            }
+
+            if (value && question.type === "date") {
+              const date = new Date(value + "T00:00:00Z");
+
+              if (
+                !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+                Number.isNaN(date.getTime()) ||
+                date.toISOString().slice(0, 10) !== value
+              ) {
+                throw new Error("Invalid date in row " + record.row);
+              }
+            }
+          }
+        }
+
+        const single = document.getElementById("adminReviewForm");
+        single.hidden = true;
+
+        const bulk = document.createElement("form");
+        bulk.id = "bulkReviewForm";
+
+        const shell = document.createElement("fieldset");
+        bulk.append(shell);
+
+        function node(tag, text, parent, className) {
+          const el = document.createElement(tag);
+          if (text) el.textContent = text;
+          if (className) el.className = className;
+          parent.append(el);
+          return el;
+        }
+
+        node("h2", "Publish multiple reviews", shell);
+
+        node(
+          "p",
+          "Select reviews and expand each one to check its answers. Unchecked answers are not published.",
+          shell,
+          "notice"
+        );
+
+        const passwordLabel = node(
+          "label",
+          "Admin Publishing Password",
+          shell
+        );
+        passwordLabel.htmlFor = "bulkPassword";
+
+        const password = node("input", "", shell);
+        password.id = "bulkPassword";
+        password.type = "password";
+        password.autocomplete = "current-password";
+        password.minLength = 8;
+        password.maxLength = 64;
+        password.required = true;
+
+        const actions = node("div", "", shell, "selection-actions");
+
+        const select = node(
+          "button", "Select all reviews", actions, "btn btn-small"
+        );
+        const deselect = node(
+          "button", "Deselect all reviews", actions, "btn btn-small"
+        );
+
+        select.type = deselect.type = "button";
+
+        const items = [];
+
+        for (const record of imported.reviews) {
+          const wrapper = node("div", "", shell, "field");
+          const choice = node("label", "", wrapper, "publish-choice");
+
+          const selected = node("input", "", choice);
+          selected.type = "checkbox";
+          selected.checked = true;
+
+          node(
+            "span",
+            `Publish Sheet row ${record.row}: ${record.answers.name || "Customer"}`,
+            choice
+          );
+
+          const details = node("details", "", wrapper);
+          node("summary", "View / edit answers", details);
+
+          const answersBox = node("fieldset", "", details);
+          const answerActions = node(
+            "div", "", answersBox, "selection-actions"
+          );
+
+          const allAnswers = node(
+            "button",
+            "Select all answers",
+            answerActions,
+            "btn btn-small"
+          );
+
+          const noAnswers = node(
+            "button",
+            "Deselect all answers",
+            answerActions,
+            "btn btn-small"
+          );
+
+          allAnswers.type = noAnswers.type = "button";
+
+          const answers = questions.map(question => {
+            const field = node("div", "", answersBox, "field");
+            const label = node("label", "", field, "publish-choice");
+
+            const check = node("input", "", label);
+            check.type = "checkbox";
+
+            const value = String(
+              record.answers[question.key] ?? ""
+            ).trim();
+
+            check.checked = !!value;
+            node("span", question.label, label);
+
+            const input = node(
+              question.type === "textarea" ? "textarea" : "input",
+              "",
+              field,
+              "question-answer"
+            );
+
+            input.setAttribute("aria-label", question.label);
+
+            if (question.type === "rating") {
+              input.type = "number";
+              input.min = "1";
+              input.max = "5";
+              input.step = "1";
+            } else if (question.type === "date") {
+              input.type = "date";
+            } else if (question.type !== "textarea") {
+              input.type = "text";
+            }
+
+            if (question.max) {
+              input.maxLength = question.max;
+            }
+
+            if (question.type === "textarea") {
+              input.rows = 3;
+            }
+
+            input.value = value;
+
+            const sync = () => {
+              input.disabled = !check.checked;
+              input.required = check.checked;
+            };
+
+            check.addEventListener("change", sync);
+            sync();
+
+            return { question, check, input, sync };
+          });
+
+          allAnswers.addEventListener("click", () => {
+            answers.forEach(answer => {
+              answer.check.checked = true;
+              answer.sync();
+            });
+          });
+
+          noAnswers.addEventListener("click", () => {
+            answers.forEach(answer => {
+              answer.check.checked = false;
+              answer.sync();
+            });
+          });
+
+          const result = node(
+            "p", "Not published", wrapper, "admin-status"
+          );
+          result.setAttribute("role", "status");
+
+          const item = {
+            record,
+            selected,
+            details,
+            answersBox,
+            answers,
+            result,
+            done: false
+          };
+
+          item.sync = () => {
+            selected.disabled = item.done;
+            answersBox.disabled = item.done || !selected.checked;
+          };
+
+          selected.addEventListener("change", item.sync);
+          item.sync();
+          items.push(item);
+        }
+
+        select.addEventListener("click", () => {
+          items.forEach(item => {
+            if (!item.done) item.selected.checked = true;
+            item.sync();
+          });
+        });
+
+        deselect.addEventListener("click", () => {
+          items.forEach(item => {
+            item.selected.checked = false;
+            item.sync();
+          });
+        });
+
+        const approvalLabel = node("label", "", shell, "check");
+        const approval = node("input", "", approvalLabel);
+        approval.type = "checkbox";
+        approval.required = true;
+
+        node(
+          "span",
+          "I confirm customer approval to publish the selected answers in every selected review.",
+          approvalLabel
+        );
+
+        const submit = node(
+          "button",
+          "Publish selected reviews",
+          shell,
+          "btn btn-primary"
+        );
+        submit.type = "submit";
+
+        const progress = node("p", "", bulk, "admin-status");
+        progress.setAttribute("role", "status");
+        progress.setAttribute("aria-live", "polite");
+
+        single.after(bulk);
+
+        document.getElementById("importStatus").textContent =
+          `${items.length} review(s) imported. Nothing has been published yet.`;
+
+        let busy = false;
+
+        // Open closed answer sections before focusing invalid fields.
+        bulk.noValidate = true;
+
+        bulk.addEventListener("submit", async event => {
+          event.preventDefault();
+
+          if (busy) return;
+
+          const chosen = items.filter(
+            item => item.selected.checked && !item.done
+          );
+
+          if (!chosen.length) {
+            progress.textContent =
+              "Select at least one unpublished review.";
+            return;
+          }
+
+          for (const item of chosen) {
+            if (!item.answers.some(answer => answer.check.checked)) {
+              item.details.open = true;
+              progress.textContent =
+                `Select at least one answer in Sheet row ${item.record.row}.`;
+              return;
+            }
+
+            for (const answer of item.answers.filter(
+              answer => answer.check.checked
+            )) {
+              if (
+                !answer.input.checkValidity() ||
+                !answer.input.value.trim()
+              ) {
+                item.details.open = true;
+                progress.textContent =
+                  `Check ${answer.question.label} in Sheet row ${item.record.row}.`;
+                answer.input.reportValidity();
+                answer.input.focus();
+                return;
+              }
+            }
+          }
+
+          if (
+            !password.reportValidity() ||
+            !approval.reportValidity()
+          ) {
+            return;
+          }
+
+          const reviews = chosen.map(item => {
+            const included = item.answers.filter(
+              answer => answer.check.checked
+            );
+
+            const payload = {
+              sourceId: item.record.sourceId,
+              consent: true,
+              selectedFields: included.map(
+                answer => answer.question.key
+              )
+            };
+
+            for (const answer of included) {
+              payload[answer.question.key] =
+                answer.question.type === "rating"
+                  ? Number(answer.input.value)
+                  : answer.input.value.trim();
+            }
+
+            return payload;
+          });
+
+          busy = true;
+          shell.disabled = true;
+          progress.textContent =
+            `Publishing ${reviews.length} review(s)…`;
+
+          try {
+            const response = await send(
+              "POST",
+              password.value,
+              { reviews }
+            );
+
+            if (
+              !Array.isArray(response.results) ||
+              response.results.length !== chosen.length ||
+              chosen.some(item =>
+                !response.results.some(
+                  result =>
+                    result.sourceId === item.record.sourceId.toLowerCase()
+                )
+              )
+            ) {
+              throw new Error(
+                "Unexpected result. Retry the same reviews to confirm publication."
+              );
+            }
+
+            for (const item of chosen) {
+              const outcome = response.results.find(
+                result =>
+                  result.sourceId === item.record.sourceId.toLowerCase()
+              );
+
+              if (
+                ["published", "alreadyPublished"].includes(outcome.status)
+              ) {
+                item.done = true;
+                item.selected.checked = false;
+                item.result.textContent =
+                  outcome.status === "published"
+                    ? "Published successfully"
+                    : "Already published — no duplicate added";
+              } else if (outcome.status === "conflict") {
+                item.done = true;
+                item.selected.checked = false;
+                item.result.textContent =
+                  "This response was already published with different answers. No new review added. Check the website.";
+              } else {
+                item.result.textContent =
+                  "Not published: hourly limit reached. Try again later.";
+              }
+
+              item.sync();
+            }
+
+            const confirmed = chosen.filter(item =>
+              response.results.some(result =>
+                result.sourceId === item.record.sourceId.toLowerCase() &&
+                ["published", "alreadyPublished"].includes(result.status)
+              )
+            );
+
+            progress.textContent =
+              `${confirmed.length} of ${chosen.length} selected reviews confirmed. ` +
+              (
+                confirmed.length
+                  ? `Confirmed Sheet rows: ${confirmed.map(item => item.record.row).join(", ")}. `
+                  : ""
+              ) +
+              "Check Testimonials, then mark only confirmed rows as Published in Sheets. Sheet status is not updated automatically.";
+
+            approval.checked = false;
+          } catch (error) {
+            progress.textContent =
+              "Publication not confirmed: " + error.message +
+              " Retry the same reviews and selections. Imported response IDs prevent duplicate publication.";
+          } finally {
+            busy = false;
+            shell.disabled = false;
+            items.forEach(item => item.sync());
+          }
+        });
+      }
+
       function importSheetResponse() {
         if (!location.hash.startsWith("#import=")) return;
 
         const encoded = location.hash.slice(8);
         const importStatus = document.getElementById("importStatus");
 
-        // Remove the feedback from the address bar immediately.
         history.replaceState(
           null,
           "",
@@ -537,6 +978,11 @@
             new TextDecoder("utf-8", { fatal: true }).decode(bytes)
           );
 
+          if (imported.version === 2) {
+            openBulkImport(imported);
+            return;
+          }
+
           if (
             imported.version !== 1 ||
             !imported.answers ||
@@ -546,7 +992,6 @@
             throw new Error("Invalid response data.");
           }
 
-          // Validate all values before changing the form.
           const values = controls.map(item => {
             const raw = imported.answers[item.question.key];
             const value = raw == null ? "" : String(raw).trim();
@@ -563,9 +1008,7 @@
               item.question.type === "rating" &&
               !/^[1-5]$/.test(value)
             ) {
-              throw new Error(
-                "Invalid rating: " + item.question.label
-              );
+              throw new Error("Invalid rating: " + item.question.label);
             }
 
             if (value && item.question.type === "date") {
@@ -585,17 +1028,14 @@
 
           controls.forEach((item, index) => {
             const value = values[index];
-
-            // Empty answers are automatically deselected.
             item.checkbox.checked = value !== "";
 
             if (item.other) {
-              const match = item.question.options.find(option =>
-                option.toLowerCase() === value.toLowerCase()
+              const match = item.question.options.find(
+                option => option.toLowerCase() === value.toLowerCase()
               );
 
               item.input.value = value ? (match || "Other") : "";
-
               item.other.value =
                 value && (!match || match === "Other")
                   ? value
@@ -605,11 +1045,9 @@
             }
           });
 
-          // Importing never supplies credentials or customer approval.
           document.getElementById("approved").checked = false;
           document.getElementById("adminSecret").value = "";
           document.getElementById("privateEmail").value = "";
-
           syncAll();
 
           importStatus.textContent =
@@ -687,7 +1125,6 @@
           payload[item.question.key] = value;
         }
 
-        // Unchecked answers and the private email are never sent.
         const signature = JSON.stringify(payload);
 
         if (!pending || pending.signature !== signature) {
@@ -715,7 +1152,6 @@
             "Website Reviews → Mark selected response as published.";
 
           document.getElementById("importStatus").textContent = "";
-
           pending = null;
           form.reset();
           syncAll();
@@ -742,10 +1178,8 @@
 
         const currentPassword =
           document.getElementById("currentAdminPassword").value;
-
         const newPassword =
           document.getElementById("newAdminPassword").value;
-
         const confirmation =
           document.getElementById("confirmAdminPassword").value;
 

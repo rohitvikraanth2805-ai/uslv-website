@@ -72,13 +72,12 @@ const SAVE_REVIEW = `
     if previous == ARGV[2] then
       return 2
     end
-
     return 3
   end
 
   local count = tonumber(redis.call('GET', KEYS[2]) or '0')
 
-  if count >= 5 then
+  if count >= 100 then
     return 0
   end
 
@@ -92,6 +91,44 @@ const SAVE_REVIEW = `
   redis.call('SET', KEYS[3], ARGV[2], 'EX', 86400)
 
   return 1
+`;
+
+// Imported Sheet response IDs are retained to prevent duplicates.
+const SAVE_BATCH = `
+  if redis.call('GET', KEYS[2]) ~= ARGV[1] then
+    return {-1}
+  end
+
+  local entries = cjson.decode(ARGV[2])
+  local results = {}
+  local count = tonumber(redis.call('GET', KEYS[3]) or '0')
+
+  for i, entry in ipairs(entries) do
+    local previous = redis.call('GET', KEYS[3 + i])
+
+    if previous then
+      if previous == entry.fingerprint then
+        results[i] = 2
+      else
+        results[i] = 3
+      end
+    elseif count >= 100 then
+      results[i] = 0
+    else
+      redis.call('LPUSH', KEYS[1], entry.record)
+      redis.call('SET', KEYS[3 + i], entry.fingerprint)
+
+      count = redis.call('INCR', KEYS[3])
+
+      if count == 1 then
+        redis.call('EXPIRE', KEYS[3], 3600)
+      end
+
+      results[i] = 1
+    end
+  end
+
+  return results
 `;
 
 function fail(message, status = 400) {
@@ -172,7 +209,6 @@ async function authenticate(req) {
   }
 
   const header = String(req.headers.authorization || "");
-
   const password = header.startsWith("Bearer ")
     ? header.slice(7)
     : "";
@@ -208,8 +244,6 @@ async function authenticate(req) {
 }
 
 function validate(body) {
-  // Existing Google Sheets requests have no selection list.
-  // Keep supporting them by including all their public answers.
   const requested = body.selectedFields === undefined
     ? FIELDS
     : body.selectedFields;
@@ -240,7 +274,7 @@ function validate(body) {
     recommend: 500
   };
 
-  // Validate and save ONLY the selected fields.
+  // Only selected answers are validated and saved.
   for (const key of selected) {
     if (RATINGS.includes(key)) {
       if (
@@ -318,8 +352,98 @@ function publicReview(record) {
     result.selectedFields = fields;
   }
 
-  // Email and password information are never included.
   return result;
+}
+
+async function publishBatch(body, auth, res) {
+  if (
+    !Array.isArray(body.reviews) ||
+    !body.reviews.length ||
+    body.reviews.length > 20
+  ) {
+    fail("Select between 1 and 20 reviews.");
+  }
+
+  const ids = new Set();
+
+  const entries = body.reviews.map((item, index) => {
+    if (
+      !item ||
+      typeof item !== "object" ||
+      Array.isArray(item) ||
+      typeof item.sourceId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        item.sourceId
+      )
+    ) {
+      fail(`Review ${index + 1}: invalid Sheet response ID. Import again.`);
+    }
+
+    const id = item.sourceId.toLowerCase();
+
+    if (ids.has(id)) {
+      fail("The batch contains a duplicate response.");
+    }
+
+    ids.add(id);
+
+    let review;
+
+    try {
+      review = validate({ ...item, requestId: id });
+    } catch (error) {
+      fail(`Review ${index + 1}: ${error.message}`);
+    }
+
+    return {
+      sourceId: id,
+      fingerprint: createHash("sha256")
+        .update(JSON.stringify(review))
+        .digest("hex"),
+      record: JSON.stringify({
+        id: randomUUID(),
+        ...review,
+        createdAt: new Date().toISOString()
+      })
+    };
+  });
+
+  const result = await redis([
+    "EVAL",
+    SAVE_BATCH,
+    3 + entries.length,
+    REVIEW_KEY,
+    PASSWORD_KEY,
+    `uslv:review-limit:${auth.visitor}`,
+    ...entries.map(entry => `uslv:review-source:v1:${entry.sourceId}`),
+    auth.stored,
+    JSON.stringify(entries)
+  ]);
+
+  if (Array.isArray(result) && Number(result[0]) === -1) {
+    fail("Password changed. Enter the latest password.", 401);
+  }
+
+  if (
+    !Array.isArray(result) ||
+    result.length !== entries.length ||
+    result.some(code => ![0, 1, 2, 3].includes(Number(code)))
+  ) {
+    throw new Error("Unexpected batch result.");
+  }
+
+  return res.status(200).json({
+    success: true,
+    results: entries.map((entry, index) => ({
+      sourceId: entry.sourceId,
+      status: [
+        "limited",
+        "published",
+        "alreadyPublished",
+        "conflict"
+      ][Number(result[index])]
+    }))
+  });
 }
 
 export default async function handler(req, res) {
@@ -328,7 +452,6 @@ export default async function handler(req, res) {
 
   if (!["GET", "POST", "PATCH"].includes(req.method)) {
     res.setHeader("Allow", "GET, POST, PATCH");
-
     return res.status(405).json({
       error: "Method not allowed."
     });
@@ -395,7 +518,7 @@ export default async function handler(req, res) {
       fail("Invalid request.");
     }
 
-    if (Buffer.byteLength(JSON.stringify(body)) > 50000) {
+    if (Buffer.byteLength(JSON.stringify(body)) > 1000000) {
       fail("Request is too large.", 413);
     }
 
@@ -432,6 +555,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    if (Object.hasOwn(body, "reviews")) {
+      return await publishBatch(body, auth, res);
+    }
+
     const review = validate(body);
 
     const fingerprint = createHash("sha256")
@@ -460,10 +587,7 @@ export default async function handler(req, res) {
     );
 
     if (result === 0) {
-      fail(
-        "Limit of five reviews per hour reached. Please try later.",
-        429
-      );
+      fail("Limit of 100 reviews per hour reached. Please try later.", 429);
     }
 
     if (result === 3) {
