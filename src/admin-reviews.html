@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
 
   <title>Review Publishing | US &amp; LV India</title>
   <link rel="stylesheet" href="style.css">
@@ -138,6 +139,12 @@
         Publish only answers approved by the customer for this website.
       </p>
 
+      <p
+        id="importStatus"
+        class="admin-status"
+        role="status"
+        aria-live="polite"></p>
+
       <form id="adminReviewForm">
         <fieldset id="reviewFields">
           <div class="field">
@@ -159,6 +166,7 @@
             <p class="notice">
               This value stays in this form only.
               It is not sent, saved or published.
+              Email addresses are not imported from Google Sheets.
             </p>
           </div>
 
@@ -166,6 +174,7 @@
             <button type="button" class="btn btn-small" id="selectAll">
               Select All
             </button>
+
             <button type="button" class="btn btn-small" id="deselectAll">
               Deselect All
             </button>
@@ -260,7 +269,12 @@
       "use strict";
 
       const questions = [
-        { key: "name", label: "Candidate Name", type: "text", max: 80 },
+        {
+          key: "name",
+          label: "Candidate Name",
+          type: "text",
+          max: 80
+        },
         {
           key: "category",
           label: "Class / Category",
@@ -336,6 +350,7 @@
 
       function updateCount() {
         const selected = controls.filter(item => item.checkbox.checked);
+
         count.textContent =
           `${selected.length} of ${questions.length} answers selected.`;
       }
@@ -458,6 +473,7 @@
         };
 
         controls.push(item);
+
         checkbox.addEventListener("change", item.sync);
         input.addEventListener("change", item.sync);
 
@@ -485,6 +501,129 @@
       });
 
       syncAll();
+
+      // Read the selected response from the Google Sheets import link.
+      function importSheetResponse() {
+        if (!location.hash.startsWith("#import=")) return;
+
+        const encoded = location.hash.slice(8);
+        const importStatus = document.getElementById("importStatus");
+
+        // Remove the feedback from the address bar immediately.
+        history.replaceState(
+          null,
+          "",
+          location.pathname + location.search
+        );
+
+        try {
+          if (
+            encoded.length > 70000 ||
+            !/^[A-Za-z0-9_-]+={0,2}$/.test(encoded)
+          ) {
+            throw new Error("Invalid import link.");
+          }
+
+          const binary = atob(
+            encoded.replace(/-/g, "+").replace(/_/g, "/")
+          );
+
+          const bytes = Uint8Array.from(
+            binary,
+            character => character.charCodeAt(0)
+          );
+
+          const imported = JSON.parse(
+            new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+          );
+
+          if (
+            imported.version !== 1 ||
+            !imported.answers ||
+            typeof imported.answers !== "object" ||
+            Array.isArray(imported.answers)
+          ) {
+            throw new Error("Invalid response data.");
+          }
+
+          // Validate all values before changing the form.
+          const values = controls.map(item => {
+            const raw = imported.answers[item.question.key];
+            const value = raw == null ? "" : String(raw).trim();
+
+            if (value.length > (item.question.max || 10)) {
+              throw new Error(
+                item.question.label +
+                " is too long. Shorten that answer in Sheets first."
+              );
+            }
+
+            if (
+              value &&
+              item.question.type === "rating" &&
+              !/^[1-5]$/.test(value)
+            ) {
+              throw new Error(
+                "Invalid rating: " + item.question.label
+              );
+            }
+
+            if (value && item.question.type === "date") {
+              const date = new Date(value + "T00:00:00Z");
+
+              if (
+                !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+                Number.isNaN(date.getTime()) ||
+                date.toISOString().slice(0, 10) !== value
+              ) {
+                throw new Error("Invalid counselling date.");
+              }
+            }
+
+            return value;
+          });
+
+          controls.forEach((item, index) => {
+            const value = values[index];
+
+            // Empty answers are automatically deselected.
+            item.checkbox.checked = value !== "";
+
+            if (item.other) {
+              const match = item.question.options.find(option =>
+                option.toLowerCase() === value.toLowerCase()
+              );
+
+              item.input.value = value ? (match || "Other") : "";
+
+              item.other.value =
+                value && (!match || match === "Other")
+                  ? value
+                  : "";
+            } else {
+              item.input.value = value;
+            }
+          });
+
+          // Importing never supplies credentials or customer approval.
+          document.getElementById("approved").checked = false;
+          document.getElementById("adminSecret").value = "";
+          document.getElementById("privateEmail").value = "";
+
+          syncAll();
+
+          importStatus.textContent =
+            "Response imported. Nothing has been published. " +
+            "Review the answers, deselect any you want to omit, " +
+            "enter your password and confirm customer approval.";
+        } catch (error) {
+          importStatus.textContent =
+            "Import failed: " + error.message +
+            " Return to Sheets and create the import link again.";
+        }
+      }
+
+      importSheetResponse();
 
       async function send(method, password, payload) {
         const response = await fetch("/api/reviews", {
@@ -571,14 +710,18 @@
           });
 
           status.textContent =
-            "Selected answers published successfully. Open Testimonials and click Refresh Reviews.";
+            "Selected answers published successfully. " +
+            "Check Testimonials, then return to Google Sheets and choose " +
+            "Website Reviews → Mark selected response as published.";
+
+          document.getElementById("importStatus").textContent = "";
 
           pending = null;
           form.reset();
           syncAll();
         } catch (error) {
           status.textContent = error.name === "TimeoutError"
-            ? "Request timed out. Retry with the same selection and answers."
+            ? "Request timed out. Retry in this same page with the same selection and answers."
             : error.message;
         } finally {
           publishing = false;
