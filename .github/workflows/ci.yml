@@ -1,0 +1,59 @@
+name: USLV Website CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  website-checks:
+    name: USLV Website Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Find package folder
+        shell: bash
+        run: |
+          if [ -f package.json ]; then
+            echo "PACKAGE_DIR=." >> "$GITHUB_ENV"
+          elif [ -f src/package.json ]; then
+            echo "PACKAGE_DIR=src" >> "$GITHUB_ENV"
+          else
+            echo "No package.json found in the main folder or src."
+            exit 1
+          fi
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            echo "Checking: $file"
+            node --check "$file"
+          done < <(git ls-files -z -- '*.js' '*.mjs' '*.cjs')
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          cd "$PACKAGE_DIR"
+          npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Scan production dependencies
+        shell: bash
+        run: |
+          cd "$PACKAGE_DIR"
+          npm audit --omit=dev --audit-level=high
