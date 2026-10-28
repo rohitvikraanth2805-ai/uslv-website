@@ -452,6 +452,7 @@ export default async function handler(req, res) {
 
   if (!["GET", "POST", "PATCH"].includes(req.method)) {
     res.setHeader("Allow", "GET, POST, PATCH");
+
     return res.status(405).json({
       error: "Method not allowed."
     });
@@ -479,20 +480,45 @@ export default async function handler(req, res) {
 
       const start = Number(page) * PAGE_SIZE;
 
-      const rows = await redis([
-        "LRANGE",
-        REVIEW_KEY,
-        start,
-        start + PAGE_SIZE
-      ]);
+      // Read one snapshot so the average includes every published review.
+      const rows = await redis(["LRANGE", REVIEW_KEY, 0, -1]);
+
+      const reviews = rows.map(row => publicReview(
+        typeof row === "string" ? JSON.parse(row) : row
+      ));
+
+      let total = 0;
+      let ratedCount = 0;
+
+      for (const review of reviews) {
+        const selected =
+          Number(review.schemaVersion) < 3 ||
+          !review.schemaVersion ||
+          (
+            Array.isArray(review.selectedFields) &&
+            review.selectedFields.includes("rating")
+          );
+
+        const rating = Number(review.rating);
+
+        if (
+          selected &&
+          Number.isInteger(rating) &&
+          rating >= 1 &&
+          rating <= 5
+        ) {
+          total += rating;
+          ratedCount += 1;
+        }
+      }
 
       return res.status(200).json({
-        reviews: rows.slice(0, PAGE_SIZE).map(row =>
-          publicReview(
-            typeof row === "string" ? JSON.parse(row) : row
-          )
-        ),
-        hasMore: rows.length > PAGE_SIZE
+        reviews: reviews.slice(start, start + PAGE_SIZE),
+        hasMore: start + PAGE_SIZE < reviews.length,
+        summary: {
+          ratedCount,
+          average: ratedCount ? total / ratedCount : null
+        }
       });
     }
 

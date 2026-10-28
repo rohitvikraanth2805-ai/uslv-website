@@ -8,6 +8,8 @@
     <div class="container">
       <h2 id="testimonialsTitle">Testimonials</h2>
 
+      <div id="overallRating" class="overall-rating" hidden></div>
+
       <div class="review-toolbar">
         <div>
           <h3>Customer Reviews</h3>
@@ -59,6 +61,8 @@
       </div>
 
       <div class="reviews-panel-body">
+        <div id="panelOverallRating" class="overall-rating" hidden></div>
+
         <p>Feedback from our counselling clients.</p>
 
         <p
@@ -86,6 +90,36 @@
   const style = document.createElement("style");
 
   style.textContent = `
+    #testimonials [hidden],
+    #uslvReviewsPanel [hidden] {
+      display: none !important;
+    }
+
+    .overall-rating {
+      margin: 1rem 0 1.5rem;
+    }
+
+    .overall-rating p {
+      margin: .35rem 0;
+    }
+
+    .overall-rating .average-stars {
+      position: relative;
+      display: inline-block;
+      color: #38bdf8;
+      font-size: 2rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      letter-spacing: .08em;
+    }
+
+    .overall-rating .average-stars-fill {
+      position: absolute;
+      inset: 0 auto 0 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
     #testimonials .review-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -191,7 +225,7 @@
     }
 
     #uslvReviewsPanel .review-stars {
-      color: var(--brass-dark);
+      color: #38bdf8;
       font-size: 1.2rem;
       white-space: nowrap;
     }
@@ -207,10 +241,6 @@
 
     #uslvReviewsPanel #loadMoreReviews {
       margin-top: 1.5rem;
-    }
-
-    #uslvReviewsPanel [hidden] {
-      display: none !important;
     }
 
     @media (max-width: 640px) {
@@ -238,6 +268,56 @@
   const panelStatus = panel.querySelector("#reviewsPanelStatus");
   const list = panel.querySelector("#reviewsList");
   const moreButton = panel.querySelector("#loadMoreReviews");
+
+  const summaries = [
+    section.querySelector("#overallRating"),
+    panel.querySelector("#panelOverallRating")
+  ];
+
+  function updateSummary(summary) {
+    const count = summary?.ratedCount;
+    const average = summary?.average;
+
+    const valid =
+      Number.isInteger(count) &&
+      count > 0 &&
+      typeof average === "number" &&
+      Number.isFinite(average) &&
+      average >= 1 &&
+      average <= 5;
+
+    for (const box of summaries) {
+      box.replaceChildren();
+      box.hidden = !valid;
+
+      if (!valid) continue;
+
+      const title = document.createElement("p");
+      const strong = document.createElement("strong");
+      strong.textContent = "Overall Rating";
+      title.appendChild(strong);
+
+      const stars = document.createElement("span");
+      stars.className = "average-stars";
+      stars.setAttribute("aria-hidden", "true");
+      stars.textContent = "☆☆☆☆☆";
+
+      const fill = document.createElement("span");
+      fill.className = "average-stars-fill";
+      fill.textContent = "★★★★★";
+      fill.style.width = `${average / 5 * 100}%`;
+
+      stars.appendChild(fill);
+
+      const description = document.createElement("p");
+      description.textContent =
+        `${average.toFixed(1)} out of 5 · Based on ${count} ${
+          count === 1 ? "rated review" : "rated reviews"
+        }`;
+
+      box.append(title, stars, description);
+    }
+  }
 
   let page = 0;
   let loading = false;
@@ -435,6 +515,8 @@
         throw new Error("The review response was invalid.");
       }
 
+      updateSummary(data.summary);
+
       if (reset) {
         list.replaceChildren();
       }
@@ -475,6 +557,7 @@
         ? "Loading took too long. Please click Refresh Reviews to retry."
         : error.message || "Reviews could not be loaded.";
 
+      updateSummary(null);
       panelStatus.textContent = message;
       mainStatus.textContent = message;
     } finally {
@@ -539,5 +622,6 @@
     openButton.focus({ preventScroll: true });
   });
 
-  // Reviews load when Open Reviews or Refresh Reviews is clicked.
+  // Load the average on page arrival; review cards remain inside the panel.
+  loadReviews(true);
 })();
